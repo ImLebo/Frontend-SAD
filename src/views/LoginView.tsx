@@ -106,33 +106,17 @@ export const LoginView: React.FC = () => {
         </form>
 
         {/* Demo Users Quick Access */}
-        <div className="mt-8 pt-6 border-t border-slate-800">
-          <p className="text-[11px] font-bold text-slate-400 mb-3 text-center uppercase tracking-wider">
-            Accesos de Prueba Rápida
+        <div className="mt-8 pt-6 border-t border-slate-800 text-center">
+          <p className="text-[11px] font-bold text-slate-400 mb-3 uppercase tracking-wider">
+            Acceso Rápido
           </p>
-          <div className="grid grid-cols-3 gap-2">
-            <button
-              type="button"
-              onClick={() => setDemoUser('funcionario1@siga.com', 'Ayuda2026*')}
-              className="px-2.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-[10px] text-slate-300 rounded-lg font-bold transition text-center"
-            >
-              Funcionario
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoUser('ayudac1@siga.com', 'Ayuda2026*')}
-              className="px-2.5 py-1.5 bg-amber-500/10 hover:bg-amber-500/20 text-[10px] text-amber-400 border border-amber-500/20 rounded-lg font-bold transition text-center"
-            >
-              Aux. Censo (N6)
-            </button>
-            <button
-              type="button"
-              onClick={() => setDemoUser('ayudae1@siga.com', 'Ayuda2026*')}
-              className="px-2.5 py-1.5 bg-emerald-500/10 hover:bg-emerald-500/20 text-[10px] text-emerald-400 border border-emerald-500/20 rounded-lg font-bold transition text-center"
-            >
-              Entregas (N7)
-            </button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setDemoUser('funcionario1@siga.com', 'Ayuda2026*')}
+            className="w-full px-3 py-2 bg-slate-800 hover:bg-slate-700 text-xs text-slate-200 rounded-xl font-bold transition flex items-center justify-center space-x-2 border border-slate-700"
+          >
+            <span>Ingresar como Funcionario Municipal</span>
+          </button>
         </div>
       </div>
     </div>
