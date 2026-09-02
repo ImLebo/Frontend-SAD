@@ -1,0 +1,498 @@
+[
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "AGUABONITA",
+    "Latitud": "5.183733189224577",
+    "Longitud": "-75.76310337632331",
+    "AREA_HA": "507.866054752"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "ALEJANDRÍA",
+    "Latitud": "5.158486386188848",
+    "Longitud": "-75.68739034788855",
+    "AREA_HA": "2070.99052146"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "ALSACIA",
+    "Latitud": "5.226113759146077",
+    "Longitud": "-75.76866820681063",
+    "AREA_HA": "322.587630881"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "BELLAVISTA",
+    "Latitud": "5.276463155527096",
+    "Longitud": "-75.7998823463684",
+    "AREA_HA": "216.406078293"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "BETANIA",
+    "Latitud": "5.255145200293116",
+    "Longitud": "-75.74484115054972",
+    "AREA_HA": "371.151584482"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CAMPOALEGRE O\r\r\nTUSAS",
+    "Latitud": "5.198539137815954",
+    "Longitud": "-75.77264920255635",
+    "AREA_HA": "313.753065646"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CARMELO ALTO",
+    "Latitud": "5.25830653209922",
+    "Longitud": "-75.7688574723378",
+    "AREA_HA": "182.884489044"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CARMELO BAJO",
+    "Latitud": "5.269167382767316",
+    "Longitud": "-75.7688971518097",
+    "AREA_HA": "119.910758778"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CAUYA",
+    "Latitud": "5.227571071249372",
+    "Longitud": "-75.78167121257592",
+    "AREA_HA": "197.855524487"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CHAPATA",
+    "Latitud": "5.191933500477687",
+    "Longitud": "-75.8034834798603",
+    "AREA_HA": "339.264378886"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CHAVARQUIA",
+    "Latitud": "5.175319117057567",
+    "Longitud": "-75.74022295408258",
+    "AREA_HA": "192.379122785"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "CONCHARI",
+    "Latitud": "5.249101355148068",
+    "Longitud": "-75.70724934221974",
+    "AREA_HA": "670.437674277"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL CERRO",
+    "Latitud": "5.249117595845495",
+    "Longitud": "-75.80841808458776",
+    "AREA_HA": "83.1210366871"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL CONSUELO",
+    "Latitud": "5.258526655240752",
+    "Longitud": "-75.72036726062902",
+    "AREA_HA": "94.8288881402"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL HORRO",
+    "Latitud": "5.194979434283245",
+    "Longitud": "-75.78632569234469",
+    "AREA_HA": "165.764120335"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL LIMÓN",
+    "Latitud": "5.248096090583487",
+    "Longitud": "-75.73253036240881",
+    "AREA_HA": "277.297121953"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL PARAISO",
+    "Latitud": "5.134282644376796",
+    "Longitud": "-75.81320265659437",
+    "AREA_HA": "884.189304565"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL PENSIL",
+    "Latitud": "5.248412241138697",
+    "Longitud": "-75.77791786064454",
+    "AREA_HA": "94.0626968019"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL POBLADO",
+    "Latitud": "5.262785960876166",
+    "Longitud": "-75.77959813309677",
+    "AREA_HA": "193.440304056"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL RECREO",
+    "Latitud": "5.223718174173258",
+    "Longitud": "-75.79801459563228",
+    "AREA_HA": "114.35128816"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL ROSARIO",
+    "Latitud": "5.234865747563344",
+    "Longitud": "-75.79548310102665",
+    "AREA_HA": "285.83975536"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "EL TABLAZO",
+    "Latitud": "5.1553997192510455",
+    "Longitud": "-75.80136420483979",
+    "AREA_HA": "244.532897294"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "GUAMITO",
+    "Latitud": "5.157928224462411",
+    "Longitud": "-75.74306275748357",
+    "AREA_HA": "424.38269964"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "GUAPACHA",
+    "Latitud": "5.261141733678263",
+    "Longitud": "-75.79120735803964",
+    "AREA_HA": "191.189928467"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "JUAN PEREZ",
+    "Latitud": "5.24316780546159",
+    "Longitud": "-75.75897784864833",
+    "AREA_HA": "339.15554457"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA ARBOLEDA",
+    "Latitud": "5.216537025129419",
+    "Longitud": "-75.7996434497017",
+    "AREA_HA": "138.32510408"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA CABAÑA",
+    "Latitud": "5.210579830740299",
+    "Longitud": "-75.73213899345431",
+    "AREA_HA": "420.559535365"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA ESMERALDA",
+    "Latitud": "5.210433809066354",
+    "Longitud": "-75.75135968283237",
+    "AREA_HA": "552.73344092"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA FLORESTA",
+    "Latitud": "5.2688274154801285",
+    "Longitud": "-75.75193526243619",
+    "AREA_HA": "575.417898497"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA FLORIDA",
+    "Latitud": "5.236379683181213",
+    "Longitud": "-75.73054171696853",
+    "AREA_HA": "175.633755806"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA FRISOLINA",
+    "Latitud": "5.149567901867724",
+    "Longitud": "-75.72922938217766",
+    "AREA_HA": "306.515526236"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA INDIA",
+    "Latitud": "5.1971905975856485",
+    "Longitud": "-75.70188762087878",
+    "AREA_HA": "324.719085825"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA ISLA",
+    "Latitud": "5.147925395137422",
+    "Longitud": "-75.82526782116135",
+    "AREA_HA": "659.828586054"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA LAGUNA",
+    "Latitud": "5.192041087607269",
+    "Longitud": "-75.7368391112055",
+    "AREA_HA": "131.11842077"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA LINDA",
+    "Latitud": "5.2642625985931",
+    "Longitud": "-75.80840543916362",
+    "AREA_HA": "100.092628906"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA LOMA",
+    "Latitud": "5.176024255308208",
+    "Longitud": "-75.78611779368424",
+    "AREA_HA": "613.016269625"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA PERLA",
+    "Latitud": "5.146319599400112",
+    "Longitud": "-75.71411284586256",
+    "AREA_HA": "1601.64966094"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA RICA",
+    "Latitud": "5.182507522591929",
+    "Longitud": "-75.73255412299358",
+    "AREA_HA": "111.882758542"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LA TOLDA",
+    "Latitud": "5.171569858851781",
+    "Longitud": "-75.73232722018645",
+    "AREA_HA": "61.2346688685"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LAS MERCEDES",
+    "Latitud": "5.195888587023523",
+    "Longitud": "-75.72690123784285",
+    "AREA_HA": "86.2812276351"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LOMA BAJA",
+    "Latitud": "5.180161455001134",
+    "Longitud": "-75.79918255068777",
+    "AREA_HA": "317.012109607"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "LOS \r\r\nENCUENTROS",
+    "Latitud": "5.242190271322158",
+    "Longitud": "-75.81258963217137",
+    "AREA_HA": "158.868718725"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "MARAPRA",
+    "Latitud": "5.211114214228704",
+    "Longitud": "-75.77940641109495",
+    "AREA_HA": "485.253590619"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "MIRAVALLE",
+    "Latitud": "5.268961690030208",
+    "Longitud": "-75.79732923852555",
+    "AREA_HA": "166.216846321"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "MONTECRISTO",
+    "Latitud": "5.203644810642878",
+    "Longitud": "-75.72090309104247",
+    "AREA_HA": "218.861855788"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "MORROAZUL",
+    "Latitud": "5.201190181872794",
+    "Longitud": "-75.71214054838077",
+    "AREA_HA": "229.159673724"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "NUBIA ALTA",
+    "Latitud": "5.225671661832126",
+    "Longitud": "-75.74356934057752",
+    "AREA_HA": "411.783912288"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "NUBIA BAJA",
+    "Latitud": "5.232157620861835",
+    "Longitud": "-75.71306139987902",
+    "AREA_HA": "522.464201775"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "PALO BLANCO",
+    "Latitud": "5.239247213457558",
+    "Longitud": "-75.74411248449944",
+    "AREA_HA": "197.505522443"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "PARTIDAS",
+    "Latitud": "5.274520987556791",
+    "Longitud": "-75.78327448934036",
+    "AREA_HA": "184.161827024"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "PATIO BONITO",
+    "Latitud": "5.191979058385665",
+    "Longitud": "-75.75116321963208",
+    "AREA_HA": "447.537889544"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "SAN LUIS",
+    "Latitud": "5.175995975814224",
+    "Longitud": "-75.7216847667672",
+    "AREA_HA": "671.718343627"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "SAN PEDRO",
+    "Latitud": "5.2480152135767515",
+    "Longitud": "-75.79349140643735",
+    "AREA_HA": "371.762397186"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "SORIA",
+    "Latitud": "5.158597692720698",
+    "Longitud": "-75.8124718661703",
+    "AREA_HA": "334.997537385"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "TABLA ROJA",
+    "Latitud": "5.2391492009102345",
+    "Longitud": "-75.76721735847678",
+    "AREA_HA": "252.644822597"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "TAMARBIA",
+    "Latitud": "5.2640431323671715",
+    "Longitud": "-75.81818904707283",
+    "AREA_HA": "214.554180592"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "TAUDIA\r\r\n    BAJO",
+    "Latitud": "5.26323823752266",
+    "Longitud": "-75.73395053375303",
+    "AREA_HA": "28.2220407266"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "TAUDIA\r\r\nALTO",
+    "Latitud": "5.260783556576844",
+    "Longitud": "-75.72946355976464",
+    "AREA_HA": "65.8311528321"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "TUMARAPO",
+    "Latitud": "5.218417967719887",
+    "Longitud": "-75.71352467597954",
+    "AREA_HA": "328.240019949"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "VERGEL ALTO",
+    "Latitud": "5.253760436262339",
+    "Longitud": "-75.81492139264002",
+    "AREA_HA": "141.191428684"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "VERGEL\r\r\nBAJO",
+    "Latitud": "5.25610289464673",
+    "Longitud": "-75.80235693196789",
+    "AREA_HA": "87.2622777669"
+  },
+  {
+    "NOM_DEP": "CALDAS",
+    "NOMB_MPIO": "ANSERMA",
+    "NOMBRE_VER": "VILLAOROZCO",
+    "Latitud": "5.209596851331982",
+    "Longitud": "-75.79658951673383",
+    "AREA_HA": "172.41073757"
+  }
+]

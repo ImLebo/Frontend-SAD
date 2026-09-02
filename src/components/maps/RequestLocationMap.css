@@ -1,0 +1,283 @@
+.request-location-map {
+  height: 100%;
+  width: 100%;
+  border-radius: 1.5rem;
+  background: linear-gradient(180deg, #f8fbff 0%, #eef4fb 100%);
+  font: inherit;
+}
+
+.request-location-map .leaflet-control-zoom {
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  border-radius: 1rem;
+  overflow: hidden;
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.12);
+}
+
+.request-location-map .leaflet-control-zoom a {
+  color: #334155;
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.request-location-map .leaflet-control-zoom a:hover {
+  background: #eff6ff;
+  color: #1d4ed8;
+}
+
+.request-location-map .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.9);
+  color: #64748b;
+  border-top-left-radius: 0.75rem;
+  padding: 0.2rem 0.5rem;
+}
+
+.request-location-map .leaflet-pane,
+.request-location-map .leaflet-top,
+.request-location-map .leaflet-bottom {
+  z-index: 1;
+}
+
+.request-location-map .siga-request-marker-wrapper {
+  background: transparent;
+  border: 0;
+}
+
+.request-location-map .siga-request-marker {
+  position: relative;
+  width: 42px;
+  height: 58px;
+}
+
+.request-location-map .siga-request-marker__pin {
+  display: block;
+  width: 42px;
+  height: 58px;
+}
+
+.request-location-map .siga-request-marker__icon,
+.request-location-map .siga-request-marker__dot {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  transform: translate(-50%, -50%);
+}
+
+.request-location-map .siga-request-marker__icon {
+  width: 16px;
+  height: 16px;
+  background-color: var(--marker-fill);
+  mask-repeat: no-repeat;
+  -webkit-mask-repeat: no-repeat;
+  mask-position: center;
+  -webkit-mask-position: center;
+  mask-size: 140%;
+  -webkit-mask-size: 140%;
+}
+
+.request-location-map .siga-request-marker__dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 9999px;
+  background: var(--marker-fill);
+}
+
+.request-location-map .siga-request-marker__avatar {
+  position: absolute;
+  left: 50%;
+  top: 20px;
+  transform: translate(-50%, -50%);
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  object-fit: cover;
+  background: #ffffff;
+}
+
+/* Custom Sector Icon Styles */
+.custom-sector-icon {
+  background: transparent;
+  border: none;
+}
+
+.custom-sector-marker {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.custom-sector-marker:hover {
+  transform: scale(1.15) translateY(-4px);
+  z-index: 1000 !important;
+}
+
+.sector-marker-badge {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  background: #ffffff;
+  padding: 0.25rem 0.6rem 0.25rem 0.4rem;
+  border-radius: 9999px;
+  border: 1.5px solid #cbd5e1;
+  box-shadow: 0 4px 14px -2px rgba(15, 23, 42, 0.15), 0 2px 6px -1px rgba(15, 23, 42, 0.08);
+  white-space: nowrap;
+}
+
+.sector-marker-badge--active {
+  background: #1e293b;
+  border-color: #0f172a;
+}
+
+.sector-marker-badge--empty {
+  opacity: 0.85;
+}
+
+.sector-marker-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sector-color, #3b82f6);
+  color: #ffffff;
+}
+
+.sector-marker-name {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: #1e293b;
+  max-width: 130px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sector-marker-badge--active .sector-marker-name {
+  color: #f8fafc;
+}
+
+.sector-marker-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.3rem;
+  border-radius: 9999px;
+  font-size: 0.7rem;
+  font-weight: 800;
+  color: #ffffff;
+  background: var(--sector-color, #3b82f6);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.12);
+}
+
+.sector-marker-tip {
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-top: 6px solid #ffffff;
+  margin-top: -1px;
+  filter: drop-shadow(0 2px 1px rgba(0, 0, 0, 0.08));
+}
+
+.sector-marker-badge--active + .sector-marker-tip {
+  border-top-color: #1e293b;
+}
+
+.sector-marker-pulse {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 9999px;
+  background: var(--sector-color, #3b82f6);
+  opacity: 0.25;
+  animation: pulse-ring 2.5s cubic-bezier(0.215, 0.61, 0.355, 1) infinite;
+  pointer-events: none;
+  z-index: -1;
+}
+
+@keyframes pulse-ring {
+  0% {
+    transform: translate(-50%, -50%) scale(0.9);
+    opacity: 0.6;
+  }
+  80%, 100% {
+    transform: translate(-50%, -50%) scale(1.6);
+    opacity: 0;
+  }
+}
+
+/* Semáforo Pastel Styles for Sectors */
+.sector-marker-container {
+  position: relative;
+  width: 0;
+  height: 0;
+}
+
+.sector-center-pulse {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background-color: transparent;
+  transform: translate(-50%, -50%);
+  animation: pulse-ring 2s infinite cubic-bezier(0.66, 0, 0, 1);
+  pointer-events: none;
+  z-index: -1;
+}
+
+.sector-traffic-light {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 32px;
+  height: 32px;
+  border-radius: 9999px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-weight: 900;
+  font-size: 13px;
+  padding: 4px;
+  transition: all 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: translate(-50%, -50%);
+  cursor: pointer;
+}
+
+.sector-traffic-light.green {
+  background-color: #d1fae5;
+  border: 2px solid #10b981;
+  color: #065f46;
+}
+
+.sector-traffic-light.yellow {
+  background-color: #fef3c7;
+  border: 2px solid #f59e0b;
+  color: #92400e;
+}
+
+.sector-traffic-light.red {
+  background-color: #fee2e2;
+  border: 2px solid #ef4444;
+  color: #991b1b;
+}
+
+.sector-traffic-light.gray {
+  background-color: #f1f5f9;
+  border: 2px solid #94a3b8;
+  color: #334155;
+}
+
+.sector-marker-container.selected .sector-traffic-light,
+.sector-traffic-light:hover {
+  transform: translate(-50%, -50%) scale(1.2);
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.35), 0 8px 16px rgba(0, 0, 0, 0.2);
+  z-index: 1000;
+}
+

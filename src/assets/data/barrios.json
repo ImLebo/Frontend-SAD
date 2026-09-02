@@ -1,0 +1,202 @@
+[
+  {
+    "Codigo_Barrio": 112,
+    "Nombre Barrio": "LA ESPERANZA",
+    "Latitud": "5.228274",
+    "Longitud": "-75.789108"
+  },
+  {
+    "Codigo_Barrio": 118,
+    "Nombre Barrio": "LOS PRADOS",
+    "Latitud": "5.236572",
+    "Longitud": "-75.786072"
+  },
+  {
+    "Codigo_Barrio": 119,
+    "Nombre Barrio": "LOS SAUCES-ARCO II",
+    "Latitud": "5.244352",
+    "Longitud": "-75.781250"
+  },
+  {
+    "Codigo_Barrio": 121,
+    "Nombre Barrio": "OCCIDENTE",
+    "Latitud": "5.232319",
+    "Longitud": "-75.787758"
+  },
+  {
+    "Codigo_Barrio": 122,
+    "Nombre Barrio": "OCUZCA",
+    "Latitud": "5.239971",
+    "Longitud": "-75.782206"
+  },
+  {
+    "Codigo_Barrio": 123,
+    "Nombre Barrio": "PABLO VI",
+    "Latitud": "5.22561",
+    "Longitud": "-75.78861"
+  },
+  {
+    "Codigo_Barrio": 111,
+    "Nombre Barrio": "LA CADENA (EL DEPORTIVO)",
+    "Latitud": "5.22772",
+    "Longitud": "-75.78633"
+  },
+  {
+    "Codigo_Barrio": 127,
+    "Nombre Barrio": "SANTA BARBARA",
+    "Latitud": "5.22950",
+    "Longitud": "-75.78842"
+  },
+  {
+    "Codigo_Barrio": 101,
+    "Nombre Barrio": "LOS NARANJOS",
+    "Latitud": "5.23008",
+    "Longitud": "-75.78497"
+  },
+  {
+    "Codigo_Barrio": 104,
+    "Nombre Barrio": "CENTRO",
+    "Latitud": "5.23122",
+    "Longitud": "-75.78706"
+  },
+  {
+    "Codigo_Barrio": 132,
+    "Nombre Barrio": "APROBIFA",
+    "Latitud": "5.23158",
+    "Longitud": "-75.78458"
+  },
+  {
+    "Codigo_Barrio": 105,
+    "Nombre Barrio": "CESAR AGUDELO",
+    "Latitud": "5.23228",
+    "Longitud": "-75.78478"
+  },
+  {
+    "Codigo_Barrio": 103,
+    "Nombre Barrio": "CAFETERO",
+    "Latitud": "5.23286",
+    "Longitud": "-75.78406"
+  },
+  {
+    "Codigo_Barrio": 129,
+    "Nombre Barrio": "SOCORRO Y POPULAR",
+    "Latitud": "5.23411",
+    "Longitud": "-75.78475"
+  },
+  {
+    "Codigo_Barrio": 107,
+    "Nombre Barrio": "EL CARMEN",
+    "Latitud": "5.23581",
+    "Longitud": "-75.78553"
+  },
+  {
+    "Codigo_Barrio": 106,
+    "Nombre Barrio": "CRISTO REY",
+    "Latitud": "5.23636",
+    "Longitud": "-75.78661"
+  },
+  {
+    "Codigo_Barrio": 124,
+    "Nombre Barrio": "RESTREPO",
+    "Latitud": "5.23761",
+    "Longitud": "-75.78703"
+  },
+  {
+    "Codigo_Barrio": 126,
+    "Nombre Barrio": "SAN JOSE",
+    "Latitud": "5.23817",
+    "Longitud": "-75.78456"
+  },
+  {
+    "Codigo_Barrio": 110,
+    "Nombre Barrio": "GALICIA PARTE BAJA",
+    "Latitud": "5.23850",
+    "Longitud": "-75.77914"
+  },
+  {
+    "Codigo_Barrio": 117,
+    "Nombre Barrio": "LOS GUADUALES-OO.PP",
+    "Latitud": "5.23864",
+    "Longitud": "-75.78181"
+  },
+  {
+    "Codigo_Barrio": 115,
+    "Nombre Barrio": "LAS PLAYAS",
+    "Latitud": "5.23919",
+    "Longitud": "-75.78300"
+  },
+  {
+    "Codigo_Barrio": 109,
+    "Nombre Barrio": "GALICIA",
+    "Latitud": "5.23936",
+    "Longitud": "-75.78075"
+  },
+  {
+    "Codigo_Barrio": 102,
+    "Nombre Barrio": "AVENIDA EL LIBERTADOR",
+    "Latitud": "5.23961",
+    "Longitud": "-75.78492"
+  },
+  {
+    "Codigo_Barrio": 131,
+    "Nombre Barrio": "El PEDRERO",
+    "Latitud": "5.23961",
+    "Longitud": "-75.78547"
+  },
+  {
+    "Codigo_Barrio": 125,
+    "Nombre Barrio": "SAN ISIDRO",
+    "Latitud": "5.24025",
+    "Longitud": "-75.77919"
+  },
+  {
+    "Codigo_Barrio": 130,
+    "Nombre Barrio": "TAIJARA",
+    "Latitud": "5.24044",
+    "Longitud": "-75.78492"
+  },
+  {
+    "Codigo_Barrio": 116,
+    "Nombre Barrio": "LOS ALAMOS",
+    "Latitud": "5.24067",
+    "Longitud": "-75.78147"
+  },
+  {
+    "Codigo_Barrio": 128,
+    "Nombre Barrio": "SIRACUSA-VERACRUZ",
+    "Latitud": "5.24072",
+    "Longitud": "-75.78389"
+  },
+  {
+    "Codigo_Barrio": 114,
+    "Nombre Barrio": "LA PRADERA",
+    "Latitud": "5.24225",
+    "Longitud": "-75.78272"
+  },
+  {
+    "Codigo_Barrio": 120,
+    "Nombre Barrio": "LOS TILOS",
+    "Latitud": "5.24244",
+    "Longitud": "-75.78528"
+  },
+  {
+    "Codigo_Barrio": 113,
+    "Nombre Barrio": "LA MARINA II",
+    "Latitud": "5.24656",
+    "Longitud": "-75.77903"
+  },
+  {
+    "Codigo_Barrio": 108,
+    "Nombre Barrio": "EL PENSIL-MIRADOR",
+    "Latitud": "5.24658",
+    "Longitud": "-75.77958",
+    "__EMPTY_1": 32
+  },
+  {
+    "__EMPTY_1": 5,
+    "__EMPTY_2": 0.15625
+  },
+  {
+    "__EMPTY_2": 0.84375
+  }
+]
