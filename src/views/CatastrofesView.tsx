@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -87,10 +87,17 @@ const iconMap: Record<string, any> = {
 function EmergencyMapController({ isFullScreen }: { isFullScreen?: boolean }) {
   const map = useMap();
   useEffect(() => {
-    const timer = setTimeout(() => {
+    map.invalidateSize();
+    const timer1 = setTimeout(() => {
       map.invalidateSize();
-    }, 250);
-    return () => clearTimeout(timer);
+    }, 150);
+    const timer2 = setTimeout(() => {
+      map.invalidateSize();
+    }, 450);
+    return () => {
+      clearTimeout(timer1);
+      clearTimeout(timer2);
+    };
   }, [map, isFullScreen]);
   return null;
 }
@@ -695,8 +702,12 @@ export const CatastrofesView: React.FC = () => {
     );
   };
 
+  // Use deferred value for search query to keep typing at 60fps
+  const deferredMapSearch = useDeferredValue(mapSearchQuery);
+
   // Filtered solicitudes for Map
   const solicitudesFiltradasMapa = useMemo(() => {
+    const q = deferredMapSearch.toLowerCase().trim();
     return todasSolicitudes.filter((sol) => {
       // 0. Selected Event Filter
       if (selectedEventoId && sol.id_evento && sol.id_evento !== selectedEventoId) return false;
@@ -734,7 +745,6 @@ export const CatastrofesView: React.FC = () => {
       }
 
       // 6. Free Search Query
-      const q = mapSearchQuery.toLowerCase().trim();
       if (q) {
         const matchDoc = sol.documento?.toLowerCase().includes(q);
         const matchName = sol.nombre_completo?.toLowerCase().includes(q);
@@ -771,13 +781,13 @@ export const CatastrofesView: React.FC = () => {
     isRoofDamageFilterActive,
     selectedRoofDamageLevels,
     selectedSectorIds,
-    mapSearchQuery,
+    deferredMapSearch,
     selectedMultiCategoryIds,
     selectedSubtipologiaCodes,
   ]);
 
-  // Sector Geo Data & Request Counts for Map (agrupado por sector con semáforo promedio)
-  const sectorGeoData = useMemo(() => {
+  // Sector Geo Data & Precomputed Aggregates (Single-pass O(N) indexing for maximum FPS)
+  const sectorAggregatedData = useMemo(() => {
     const base = getSectorsGeoData(sectores);
     const mappedReqs = solicitudesFiltradasMapa.map((s) => ({
       latitude: s.latitud ?? null,
@@ -785,7 +795,73 @@ export const CatastrofesView: React.FC = () => {
       id: s.id_solicitud,
       id_sector: s.id_sector ?? null,
     }));
-    return assignRequestsToSectors(base, mappedReqs);
+    const sectorsWithCounts = assignRequestsToSectors(base, mappedReqs);
+
+    // Group requests by sector id in a fast Map lookup
+    const sectorRequestsMap = new Map<number, typeof solicitudesFiltradasMapa>();
+    const unassignedRequests: typeof solicitudesFiltradasMapa = [];
+
+    solicitudesFiltradasMapa.forEach((sol) => {
+      if (sol.id_sector) {
+        const list = sectorRequestsMap.get(sol.id_sector) || [];
+        list.push(sol);
+        sectorRequestsMap.set(sol.id_sector, list);
+      } else {
+        unassignedRequests.push(sol);
+      }
+    });
+
+    return sectorsWithCounts
+      .map((sec) => {
+        if (!sec.hasValidCoordinates || sec.latitude === null || sec.longitude === null || sec.requestCount <= 0) {
+          return null;
+        }
+
+        let sectorRequests = sec.id_sector ? (sectorRequestsMap.get(sec.id_sector) || []) : [];
+        if (sectorRequests.length === 0 && sec.latitude !== null && sec.longitude !== null && unassignedRequests.length > 0) {
+          sectorRequests = unassignedRequests.filter((sol) => {
+            if (!sol.latitud || !sol.longitud) return false;
+            const dLat = sec.latitude! - sol.latitud;
+            const dLng = sec.longitude! - sol.longitud;
+            return dLat * dLat + dLng * dLng < 0.001;
+          });
+        }
+
+        let totalScore = 0;
+        let countWithEval = 0;
+        let pendingCount = 0;
+        sectorRequests.forEach((s) => {
+          if (s.estado_codigo === 'pending') pendingCount++;
+          const level = s.afectacion_nivel;
+          if (level === 'Colapso Total') { totalScore += 3; countWithEval++; }
+          else if (level === 'Grave') { totalScore += 2; countWithEval++; }
+          else if (level === 'Leve') { totalScore += 1; countWithEval++; }
+          else { countWithEval++; }
+        });
+
+        const avgScore = countWithEval > 0 ? totalScore / countWithEval : 0;
+
+        let badgeColor: 'red' | 'yellow' | 'gray' | 'green' = 'gray';
+        if (avgScore >= 2.2 || sectorRequests.some((s) => s.afectacion_nivel === 'Colapso Total')) {
+          badgeColor = 'red';
+        } else if (avgScore >= 1.2 || sectorRequests.some((s) => s.afectacion_nivel === 'Grave')) {
+          badgeColor = 'yellow';
+        } else if (avgScore > 0 || sectorRequests.some((s) => s.afectacion_nivel === 'Leve')) {
+          badgeColor = 'yellow';
+        } else if (pendingCount === 0 && sectorRequests.length > 0) {
+          badgeColor = 'green';
+        } else {
+          badgeColor = 'gray';
+        }
+
+        return {
+          ...sec,
+          sectorRequests,
+          badgeColor,
+          pendingCount,
+        };
+      })
+      .filter(Boolean) as Array<typeof sectorsWithCounts[0] & { sectorRequests: typeof solicitudesFiltradasMapa; badgeColor: 'red' | 'yellow' | 'gray' | 'green'; pendingCount: number }>;
   }, [sectores, solicitudesFiltradasMapa]);
 
   const resetAllMapFilters = () => {
@@ -1305,12 +1381,12 @@ export const CatastrofesView: React.FC = () => {
       <NavbarSAC />
 
       {/* Active Disaster Event Selector & Segmented Navigation Sub-Bar */}
-      <div className="bg-white border-b border-slate-200 shadow-2xs px-4 py-2.5">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-start md:items-center gap-2.5">
+      <div className="bg-white border-b border-slate-200 shadow-2xs px-3 sm:px-4 py-2.5 overflow-hidden w-full">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row justify-between items-stretch md:items-center gap-2.5 w-full min-w-0">
           {/* Active Disaster Event Selector */}
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-2 flex-wrap w-full md:w-auto min-w-0">
             {eventos.length > 0 ? (
-              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/90 px-3 py-1 rounded-xl shadow-2xs">
+              <div className="flex items-center gap-2 bg-rose-50 border border-rose-200/90 px-2.5 sm:px-3 py-1.5 rounded-xl shadow-2xs w-full sm:w-auto min-w-0 max-w-full">
                 <span className="h-2 w-2 rounded-full bg-rose-600 animate-pulse shrink-0"></span>
                 <span className="text-xs font-black text-rose-900 shrink-0">Evento Activo:</span>
                 <select
@@ -1321,7 +1397,7 @@ export const CatastrofesView: React.FC = () => {
                     fetchSolicitudes(newEvId);
                     loadDashboard(newEvId);
                   }}
-                  className="bg-white border border-rose-200 rounded-lg px-2.5 py-0.5 text-xs font-black text-rose-950 shadow-2xs focus:outline-none cursor-pointer"
+                  className="flex-1 min-w-0 w-full sm:w-auto sm:max-w-md bg-white border border-rose-200 rounded-lg px-2 py-1 text-xs font-black text-rose-950 shadow-2xs focus:outline-none cursor-pointer truncate"
                 >
                   {eventos.map((ev) => (
                     <option key={ev.id_evento} value={ev.id_evento}>
@@ -1338,60 +1414,63 @@ export const CatastrofesView: React.FC = () => {
                 </span>
               </div>
             )}
-
-            {/* Event Details Pill */}
-            {eventos.find((e) => e.id_evento === selectedEventoId) && (
-              <div className="hidden sm:flex items-center gap-1.5 text-[11px] font-bold text-slate-600 bg-slate-100 px-2.5 py-1 rounded-xl border border-slate-200">
-                <span className="text-blue-700 font-extrabold">
-                  {eventos.find((e) => e.id_evento === selectedEventoId)?.tipo_evento}
-                </span>
-                <span className="text-slate-400">•</span>
-                <span>{eventos.find((e) => e.id_evento === selectedEventoId)?.municipio || 'Anserma'}</span>
-              </div>
-            )}
           </div>
 
           {/* Minimalist Segmented Navigation Tabs */}
-          <div className="w-full md:w-auto flex items-center justify-between md:justify-start gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80">
+          <div className="w-full md:w-auto grid grid-cols-3 sm:flex items-center justify-between md:justify-start gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 min-w-0">
             <button
               type="button"
               onClick={() => setActiveTab('formulario')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-w-0 ${
                 activeTab === 'formulario'
                   ? 'bg-white text-blue-700 shadow-2xs font-black'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
-              <FileText className="h-3.5 w-3.5" />
-              <span>Formulario</span>
+              <FileText className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Formulario</span>
             </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('mapa')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-w-0 ${
                 activeTab === 'mapa'
                   ? 'bg-white text-blue-700 shadow-2xs font-black'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
-              <MapPin className="h-3.5 w-3.5" />
-              <span>Mapa</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${activeTab === 'mapa' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'}`}>
+              <MapPin className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Mapa</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono shrink-0 ${
+                  activeTab === 'mapa'
+                    ? 'bg-blue-100 text-blue-800 font-extrabold'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
                 {todasSolicitudes.length}
               </span>
             </button>
+
             <button
               type="button"
               onClick={() => setActiveTab('historial')}
-              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+              className={`px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-w-0 ${
                 activeTab === 'historial'
                   ? 'bg-white text-blue-700 shadow-2xs font-black'
                   : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
               }`}
             >
-              <ListCheck className="h-3.5 w-3.5" />
-              <span>Historial</span>
-              <span className={`text-[10px] px-1.5 py-0.2 rounded-full font-black ${activeTab === 'historial' ? 'bg-blue-100 text-blue-800' : 'bg-slate-200 text-slate-700'}`}>
+              <ListCheck className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Historial</span>
+              <span
+                className={`text-[10px] px-1.5 py-0.2 rounded-full font-mono shrink-0 ${
+                  activeTab === 'historial'
+                    ? 'bg-blue-100 text-blue-800 font-extrabold'
+                    : 'bg-slate-200 text-slate-700'
+                }`}
+              >
                 {historialRegistros.length}
               </span>
             </button>
@@ -1935,8 +2014,8 @@ export const CatastrofesView: React.FC = () => {
                     </div>
                   </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Cédula / Documento *</label>
                   <input
                     type="text"
@@ -1944,10 +2023,10 @@ export const CatastrofesView: React.FC = () => {
                     value={documento}
                     onChange={(e) => setDocumento(e.target.value)}
                     placeholder="Número de documento"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 min-w-0 box-border"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Nombres *</label>
                   <input
                     type="text"
@@ -1955,10 +2034,10 @@ export const CatastrofesView: React.FC = () => {
                     value={nombres}
                     onChange={(e) => setNombres(e.target.value)}
                     placeholder="Nombres"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 min-w-0 box-border"
                   />
                 </div>
-                <div>
+                <div className="min-w-0 sm:col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Apellidos *</label>
                   <input
                     type="text"
@@ -1966,28 +2045,28 @@ export const CatastrofesView: React.FC = () => {
                     value={apellidos}
                     onChange={(e) => setApellidos(e.target.value)}
                     placeholder="Apellidos"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 min-w-0 box-border"
                   />
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5">
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Teléfono de Contacto</label>
                   <input
                     type="text"
                     value={telefono}
                     onChange={(e) => setTelefono(e.target.value)}
                     placeholder="ej: 3104509988"
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 min-w-0 box-border"
                   />
                 </div>
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Pertenencia Étnica</label>
                   <select
                     value={grupoEtnicoCiudadano}
                     onChange={(e) => setGrupoEtnicoCiudadano(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 cursor-pointer min-w-0 truncate box-border"
                   >
                     <option value="Ninguno de los anteriores">Ninguno de los anteriores</option>
                     <option value="Indígena">Indígena</option>
@@ -1997,12 +2076,12 @@ export const CatastrofesView: React.FC = () => {
                     <option value="Afrocolombiano(a), negro(a), mulato(a) o afrodescendiente">Afrocolombiano(a)...</option>
                   </select>
                 </div>
-                <div>
+                <div className="min-w-0 sm:col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Parentesco / Rol en Hogar</label>
                   <select
                     value={parentescoCiudadano}
                     onChange={(e) => setParentescoCiudadano(e.target.value)}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 cursor-pointer"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 cursor-pointer min-w-0 truncate box-border"
                   >
                     <option value="Jefe(a) o cabeza del hogar">Jefe(a) o cabeza del hogar</option>
                     <option value="Pareja, Esposo(a)">Pareja, Esposo(a)</option>
@@ -2017,35 +2096,35 @@ export const CatastrofesView: React.FC = () => {
                 </div>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
-                <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 pt-2 border-t border-slate-100">
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Filtrar Zona:</label>
                   <div className="grid grid-cols-3 gap-1 bg-slate-100 p-1 rounded-xl">
                     <button
                       type="button"
                       onClick={() => setSectorZoneFilter('all')}
-                      className={`py-1.5 text-[11px] font-bold rounded-lg transition ${sectorZoneFilter === 'all' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-600'}`}
+                      className={`py-1.5 px-1 text-[10px] sm:text-[11px] font-bold rounded-lg transition text-center truncate cursor-pointer ${sectorZoneFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-600'}`}
                     >
                       Todos
                     </button>
                     <button
                       type="button"
                       onClick={() => setSectorZoneFilter('urbano')}
-                      className={`py-1.5 text-[11px] font-bold rounded-lg transition ${sectorZoneFilter === 'urbano' ? 'bg-white text-blue-800 shadow-xs' : 'text-slate-600'}`}
+                      className={`py-1.5 px-1 text-[10px] sm:text-[11px] font-bold rounded-lg transition text-center truncate cursor-pointer ${sectorZoneFilter === 'urbano' ? 'bg-white text-blue-800 shadow-xs font-black' : 'text-slate-600'}`}
                     >
                       Urbano
                     </button>
                     <button
                       type="button"
                       onClick={() => setSectorZoneFilter('rural')}
-                      className={`py-1.5 text-[11px] font-bold rounded-lg transition ${sectorZoneFilter === 'rural' ? 'bg-white text-emerald-800 shadow-xs' : 'text-slate-600'}`}
+                      className={`py-1.5 px-1 text-[10px] sm:text-[11px] font-bold rounded-lg transition text-center truncate cursor-pointer ${sectorZoneFilter === 'rural' ? 'bg-white text-emerald-800 shadow-xs font-black' : 'text-slate-600'}`}
                     >
                       Rural
                     </button>
                   </div>
                 </div>
 
-                <div>
+                <div className="min-w-0">
                   <label className="block text-xs font-bold text-slate-700 mb-1">Sector / Barrio / Vereda *</label>
                   <SearchableSelect
                     options={sectoresSearchableOptions}
@@ -2062,7 +2141,7 @@ export const CatastrofesView: React.FC = () => {
                   />
                 </div>
 
-                <div>
+                <div className="min-w-0 sm:col-span-2 md:col-span-1">
                   <label className="block text-xs font-bold text-slate-700 mb-1">
                     {isSelectedSectorRural ? 'Nombre Finca / Obs. Sector (Opcional)' : 'Dirección de Afectación'}
                   </label>
@@ -2071,16 +2150,16 @@ export const CatastrofesView: React.FC = () => {
                     value={isSelectedSectorRural ? observacionSector : direccion}
                     onChange={(e) => isSelectedSectorRural ? setObservacionSector(e.target.value) : setDireccion(e.target.value)}
                     placeholder={isSelectedSectorRural ? 'Ej: Finca La Esperanza, Km 4...' : 'Ej: Calle 12 # 4-50...'}
-                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900"
+                    className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 min-w-0 box-border"
                   />
                 </div>
               </div>
 
               {/* GPS coordinates & buttons */}
-              <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-                <div className="flex items-center gap-2 text-xs text-slate-700">
-                  <MapPin className="h-4 w-4 text-blue-700" />
-                  <span className="font-mono">GPS: {latitud.toFixed(6)}, {longitud.toFixed(6)}</span>
+              <div className="p-3 sm:p-3.5 bg-slate-50 rounded-2xl border border-slate-200 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2 text-xs text-slate-700 min-w-0">
+                  <MapPin className="h-4 w-4 text-blue-700 shrink-0" />
+                  <span className="font-mono text-[11px] sm:text-xs break-all">GPS: {latitud.toFixed(6)}, {longitud.toFixed(6)}</span>
                 </div>
                 <div className="flex items-center gap-2 w-full sm:w-auto">
                   <button
@@ -2104,35 +2183,35 @@ export const CatastrofesView: React.FC = () => {
               </div>
 
               {/* Sub-card: Datos Complementarios del Núcleo Familiar */}
-              <div className="p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3">
+              <div className="p-3.5 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3">
                 <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">
                   Datos Complementarios del Núcleo Familiar (Opcionales):
                 </span>
-                <div className="grid grid-cols-2 sm:grid-cols-5 gap-3">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Edad (Años)</label>
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
+                  <div className="min-w-0">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Edad (Años)</label>
                     <input
                       type="number"
                       placeholder="35"
                       value={edad}
                       onChange={(e) => setEdad(e.target.value)}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">¿Es Propietario?</label>
+                  <div className="min-w-0">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">¿Es Propietario?</label>
                     <select
                       value={esPropietario === null ? '' : esPropietario ? 'SI' : 'NO'}
                       onChange={(e) => setEsPropietario(e.target.value === '' ? null : e.target.value === 'SI')}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 truncate box-border cursor-pointer"
                     >
                       <option value="">Seleccione...</option>
                       <option value="SI">SI</option>
                       <option value="NO">NO</option>
                     </select>
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Acompañantes</label>
+                  <div className="min-w-0">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Acompañantes</label>
                     <input
                       type="number"
                       placeholder="0"
@@ -2142,11 +2221,11 @@ export const CatastrofesView: React.FC = () => {
                         setNumAcompanantes(v);
                         setHayAcompanantes(v > 0);
                       }}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Adultos Mayores</label>
+                  <div className="min-w-0">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Adultos Mayores</label>
                     <input
                       type="number"
                       placeholder="0"
@@ -2156,11 +2235,11 @@ export const CatastrofesView: React.FC = () => {
                         setNumAdultosMayores(v);
                         setHayAdultosMayores(v > 0);
                       }}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
                     />
                   </div>
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-600 mb-1">Niños</label>
+                  <div className="min-w-0 col-span-2 sm:col-span-1">
+                    <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Niños</label>
                     <input
                       type="number"
                       placeholder="0"
@@ -2170,7 +2249,7 @@ export const CatastrofesView: React.FC = () => {
                         setNumNinos(v);
                         setHayNinos(v > 0);
                       }}
-                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                      className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
                     />
                   </div>
                 </div>
@@ -2541,24 +2620,24 @@ export const CatastrofesView: React.FC = () => {
                       <span>3. Sector Agropecuario (Pérdidas de Cultivos y Pecuario RUFE)</span>
                     </h3>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                      <div className="sm:col-span-4">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Tipo de Cultivo</label>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-12 gap-2.5">
+                      <div className="sm:col-span-2 md:col-span-3 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 truncate">Tipo de Cultivo</label>
                         <input
                           type="text"
                           placeholder="Ej: Café, Maíz, Yuca, Plátano..."
                           value={cultivoTipo}
                           onChange={(e) => setCultivoTipo(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 min-w-0 box-border"
                         />
                       </div>
 
-                      <div className="sm:col-span-3">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Unidad Medida</label>
+                      <div className="sm:col-span-1 md:col-span-3 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 truncate">Unidad Medida</label>
                         <select
                           value={cultivoUnidad}
                           onChange={(e) => setCultivoUnidad(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer min-w-0 truncate box-border"
                         >
                           <option value="Hectáreas">Hectáreas (s)</option>
                           <option value="Fanegadas">Fanegada (s)</option>
@@ -2567,37 +2646,37 @@ export const CatastrofesView: React.FC = () => {
                         </select>
                       </div>
 
-                      <div className="sm:col-span-2">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Área / Cantidad</label>
+                      <div className="sm:col-span-1 md:col-span-2 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 truncate">Área / Cantidad</label>
                         <input
                           type="number"
                           step="0.1"
                           placeholder="0.0"
                           value={cultivoArea}
                           onChange={(e) => setCultivoArea(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 min-w-0 box-border"
                         />
                       </div>
 
-                      <div className="sm:col-span-2">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Especie Pecuaria</label>
+                      <div className="sm:col-span-1 md:col-span-2 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 truncate">Especie Pecuaria</label>
                         <input
                           type="text"
                           placeholder="Ej: Bovinos, Porcinos..."
                           value={pecuarioEspecie}
                           onChange={(e) => setPecuarioEspecie(e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 min-w-0 box-border"
                         />
                       </div>
 
-                      <div className="sm:col-span-1">
-                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">Cant</label>
+                      <div className="sm:col-span-1 md:col-span-2 min-w-0">
+                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5 truncate">Cant</label>
                         <input
                           type="number"
                           placeholder="0"
                           value={pecuarioCantidad}
                           onChange={(e) => setPecuarioCantidad(e.target.value)}
-                          className="w-full px-2 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500"
+                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 min-w-0 box-border"
                         />
                       </div>
                     </div>
@@ -3327,83 +3406,97 @@ export const CatastrofesView: React.FC = () => {
             </div>
 
             {/* Filter Bar (Compact & Collapsible) */}
-            <div className="bg-white rounded-3xl p-3.5 sm:p-4 shadow-xs border border-slate-200 space-y-3">
-              <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <div className="bg-white rounded-3xl p-3 sm:p-4 shadow-xs border border-slate-200 space-y-3 w-full min-w-0">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5 w-full">
                 {/* Search Input */}
-                <div className="relative flex-1 min-w-[200px]">
+                <div className="relative flex-1 min-w-0">
                   <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
                   <input
                     type="text"
                     value={mapSearchQuery}
                     onChange={(e) => setMapSearchQuery(e.target.value)}
                     placeholder="Buscar por cédula, nombre, sector o SOL-ID..."
-                    className="w-full pl-9 pr-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 text-slate-800"
+                    className="w-full pl-9 pr-8 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold outline-none focus:bg-white focus:ring-2 focus:ring-blue-500 text-slate-800 min-w-0"
                   />
+                  {mapSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setMapSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 p-0.5 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
                 </div>
 
-                {/* Quick Status Pill */}
-                <div className="flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setMapEstadoFilter('all')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${mapEstadoFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-600 hover:text-slate-900'}`}
-                  >
-                    Todos ({todasSolicitudes.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMapEstadoFilter('pending')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${mapEstadoFilter === 'pending' ? 'bg-rose-600 text-white shadow-xs font-black' : 'text-rose-700 hover:bg-rose-50'}`}
-                  >
-                    Pendientes ({solicitudesPendientes.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setMapEstadoFilter('completed')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${mapEstadoFilter === 'completed' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-emerald-700 hover:bg-emerald-50'}`}
-                  >
-                    Atendidas
-                  </button>
-                </div>
+                <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 w-full lg:w-auto">
+                  {/* Quick Status Pill */}
+                  <div className="grid grid-cols-3 sm:flex items-center bg-slate-100 border border-slate-200 rounded-xl p-1 gap-1 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setMapEstadoFilter('all')}
+                      className={`px-2 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition text-center truncate cursor-pointer ${mapEstadoFilter === 'all' ? 'bg-white text-slate-900 shadow-xs font-black' : 'text-slate-600 hover:text-slate-900'}`}
+                    >
+                      Todos ({todasSolicitudes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapEstadoFilter('pending')}
+                      className={`px-2 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition text-center truncate cursor-pointer ${mapEstadoFilter === 'pending' ? 'bg-rose-600 text-white shadow-xs font-black' : 'text-rose-700 hover:bg-rose-50'}`}
+                    >
+                      Pendientes ({solicitudesPendientes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setMapEstadoFilter('completed')}
+                      className={`px-2 sm:px-3 py-1.5 text-xs font-bold rounded-lg transition text-center truncate cursor-pointer ${mapEstadoFilter === 'completed' ? 'bg-emerald-600 text-white shadow-xs font-black' : 'text-emerald-700 hover:bg-emerald-50'}`}
+                    >
+                      Atendidas
+                    </button>
+                  </div>
 
-                {/* Filter Controls & Fullscreen */}
-                <div className="flex items-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)}
-                    className={`px-3 py-2 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${
-                      isAdvancedFiltersOpen || (isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0)
-                        ? 'bg-blue-50 border-blue-300 text-blue-800'
-                        : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                    }`}
-                  >
-                    <SlidersHorizontal className="h-3.5 w-3.5 text-blue-700" />
-                    <span className="hidden sm:inline">Filtros</span>
-                    {(isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0) && (
-                      <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse"></span>
-                    )}
-                    {isAdvancedFiltersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                  </button>
+                  {/* Filter Controls & Fullscreen */}
+                  <div className="grid grid-cols-3 sm:flex items-center gap-1.5 w-full sm:w-auto">
+                    <button
+                      type="button"
+                      onClick={() => setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)}
+                      className={`px-2 sm:px-3 py-2 rounded-xl text-xs font-black flex items-center justify-center gap-1 transition cursor-pointer border ${
+                        isAdvancedFiltersOpen || (isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0)
+                          ? 'bg-blue-50 border-blue-300 text-blue-800'
+                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                      }`}
+                    >
+                      <SlidersHorizontal className="h-3.5 w-3.5 text-blue-700 shrink-0" />
+                      <span className="truncate">Filtros</span>
+                      {(isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0) && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse shrink-0"></span>
+                      )}
+                      {isAdvancedFiltersOpen ? <ChevronUp className="h-3.5 w-3.5 shrink-0" /> : <ChevronDown className="h-3.5 w-3.5 shrink-0" />}
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={resetAllMapFilters}
-                    className="p-2 sm:px-3 sm:py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                    title="Limpiar filtros"
-                  >
-                    <RotateCcw className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Limpiar</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        resetAllMapFilters();
+                        showToast('Filtros del mapa restablecidos.', 'success');
+                      }}
+                      className="px-2 sm:px-3 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                      title="Limpiar filtros"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-slate-600 shrink-0" />
+                      <span className="truncate">Limpiar</span>
+                    </button>
 
-                  <button
-                    type="button"
-                    onClick={() => setIsMapFullScreen(!isMapFullScreen)}
-                    className="p-2 sm:px-3 sm:py-2 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
-                    title="Maximizar pantalla"
-                  >
-                    <Maximize2 className="h-3.5 w-3.5" />
-                    <span className="hidden sm:inline">Pantalla Completa</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => setIsMapFullScreen(true)}
+                      className="px-2 sm:px-3 py-2 rounded-xl bg-blue-50 text-blue-800 border border-blue-200 hover:bg-blue-100 text-xs font-bold flex items-center justify-center gap-1 transition cursor-pointer"
+                      title="Maximizar pantalla"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5 shrink-0" />
+                      <span className="truncate">Maximizar</span>
+                    </button>
+                  </div>
                 </div>
               </div>
 
@@ -3727,81 +3820,354 @@ export const CatastrofesView: React.FC = () => {
               </div>
 
               {/* RIGHT COLUMN: Interactive Leaflet Map (Hero on Mobile) */}
-              <div className={`${mobileMapTab === 'mapa' ? 'flex' : 'hidden'} lg:flex lg:col-span-7 bg-white rounded-3xl p-2.5 sm:p-3 shadow-xs border border-slate-200 transition-all ${isMapFullScreen ? 'fixed inset-2 sm:inset-4 z-[999] shadow-2xl flex flex-col h-auto' : 'h-[68vh] min-h-[460px] lg:h-[620px] flex flex-col'}`}>
+              <div className={isMapFullScreen ? 'fixed inset-0 z-[1000] bg-slate-950 flex flex-col h-screen w-screen p-2 sm:p-3.5 shadow-2xl animate-in fade-in duration-200' : `${mobileMapTab === 'mapa' ? 'flex' : 'hidden'} lg:flex lg:col-span-7 bg-white rounded-3xl p-2.5 sm:p-3 shadow-xs border border-slate-200 h-[68vh] min-h-[460px] lg:h-[620px] flex flex-col`}>
                 {isMapFullScreen && (
-                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 mb-2 border-b border-slate-200">
-                    <div className="flex items-center gap-2">
-                      <span className="font-extrabold text-sm text-slate-900">Mapa Georreferenciado - Conteo por Sector</span>
+                  <div className="bg-slate-900/95 backdrop-blur-md border border-slate-800 text-white rounded-2xl p-2.5 sm:p-3 mb-2 shadow-2xl space-y-2.5 shrink-0 animate-in slide-in-from-top-2 duration-150">
+                    {/* Row 1: Title, Status Pills, Mode Switcher, Filter Toggle, Clean, Exit */}
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono text-xs font-black bg-blue-600/30 text-blue-300 border border-blue-500/40 px-2.5 py-1 rounded-xl flex items-center gap-1.5">
+                          <Globe2 className="h-3.5 w-3.5 text-blue-400" />
+                          <span>Mapa Operativo</span>
+                        </span>
+                        <span className="text-[11px] font-extrabold text-slate-300 bg-slate-800 px-2.5 py-1 rounded-xl border border-slate-700">
+                          {solicitudesFiltradasMapa.length} de {todasSolicitudes.length} solicitudes
+                        </span>
+                      </div>
+
+                      {/* Control Buttons in Fullscreen */}
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {/* Status Filter Buttons */}
+                        <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl p-0.5 gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => setMapEstadoFilter('all')}
+                            className={`px-2 sm:px-2.5 py-1 text-[11px] font-black rounded-lg transition cursor-pointer ${
+                              mapEstadoFilter === 'all' ? 'bg-white text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Todos
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMapEstadoFilter('pending')}
+                            className={`px-2 sm:px-2.5 py-1 text-[11px] font-black rounded-lg transition cursor-pointer ${
+                              mapEstadoFilter === 'pending' ? 'bg-rose-600 text-white shadow-xs' : 'text-rose-400 hover:text-white'
+                            }`}
+                          >
+                            Pendientes
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMapEstadoFilter('completed')}
+                            className={`px-2 sm:px-2.5 py-1 text-[11px] font-black rounded-lg transition cursor-pointer ${
+                              mapEstadoFilter === 'completed' ? 'bg-emerald-600 text-white shadow-xs' : 'text-emerald-400 hover:text-white'
+                            }`}
+                          >
+                            Atendidas
+                          </button>
+                        </div>
+
+                        {/* Mode Switcher */}
+                        <div className="flex items-center bg-slate-800 border border-slate-700 rounded-xl p-0.5 gap-0.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMapDisplayMode('sectores');
+                              showToast('Modo: Conteo por Sector', 'success');
+                            }}
+                            className={`px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition cursor-pointer ${
+                              mapDisplayMode === 'sectores' ? 'bg-amber-500 text-slate-950 shadow-xs' : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Conteo por Sector"
+                          >
+                            <Building2 className="h-3 w-3" />
+                            <span className="hidden sm:inline">Sectores</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMapDisplayMode('individual');
+                              showToast('Modo: Puntos Individuales', 'success');
+                            }}
+                            className={`px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition cursor-pointer ${
+                              mapDisplayMode === 'individual' ? 'bg-blue-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Puntos Individuales"
+                          >
+                            <MapPin className="h-3 w-3" />
+                            <span className="hidden sm:inline">Puntos</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setMapDisplayMode('ambos');
+                              showToast('Modo: Ambos (Sectores e Individuales)', 'success');
+                            }}
+                            className={`px-2 sm:px-2.5 py-1 rounded-lg text-[11px] font-black flex items-center gap-1 transition cursor-pointer ${
+                              mapDisplayMode === 'ambos' ? 'bg-emerald-600 text-white shadow-xs' : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Ambos"
+                          >
+                            <Globe2 className="h-3 w-3" />
+                            <span className="hidden sm:inline">Ambos</span>
+                          </button>
+                        </div>
+
+                        {/* Toggle Advanced Filters Button */}
+                        <button
+                          type="button"
+                          onClick={() => setIsAdvancedFiltersOpen(!isAdvancedFiltersOpen)}
+                          className={`px-2.5 py-1 rounded-xl text-xs font-black flex items-center gap-1.5 transition cursor-pointer border ${
+                            isAdvancedFiltersOpen || (isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0)
+                              ? 'bg-blue-600 border-blue-500 text-white shadow-xs'
+                              : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-700 hover:text-white'
+                          }`}
+                          title="Filtros del mapa"
+                        >
+                          <SlidersHorizontal className="h-3.5 w-3.5 text-blue-300" />
+                          <span>Filtros</span>
+                          {(isHousingDamageFilterActive || isRoofDamageFilterActive || mapZoneFilter !== 'all' || selectedSubtipologiaCodes.length > 0) && (
+                            <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
+                          )}
+                          {isAdvancedFiltersOpen ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                        </button>
+
+                        {/* Reset / Clean filters button */}
+                        <button
+                          type="button"
+                          onClick={() => {
+                            resetAllMapFilters();
+                            showToast('Filtros del mapa restablecidos.', 'success');
+                          }}
+                          className="px-2.5 py-1 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                          title="Restablecer y limpiar todos los filtros del mapa"
+                        >
+                          <RotateCcw className="h-3.5 w-3.5 text-amber-400" />
+                          <span>Limpiar</span>
+                        </button>
+
+                        {/* Exit Fullscreen Button */}
+                        <button
+                          type="button"
+                          onClick={() => setIsMapFullScreen(false)}
+                          className="px-3 py-1 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white text-xs font-black flex items-center gap-1.5 shadow-xs transition cursor-pointer"
+                          title="Salir de Pantalla Completa"
+                        >
+                          <Minimize2 className="h-3.5 w-3.5" />
+                          <span>Salir</span>
+                        </button>
+                      </div>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setIsMapFullScreen(false)}
-                      className="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-700 cursor-pointer"
-                    >
-                      Salir de Pantalla Completa
-                    </button>
+
+                    {/* Row 2: Search input & Fullscreen Collapsible Filters */}
+                    <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2 pt-1 border-t border-slate-800/80">
+                      <div className="relative flex-1 min-w-0">
+                        <Search className="absolute left-3 top-2.5 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={mapSearchQuery}
+                          onChange={(e) => setMapSearchQuery(e.target.value)}
+                          placeholder="Buscar por cédula, nombre, sector o SOL-ID..."
+                          className="w-full pl-8 pr-7 py-1.5 bg-slate-800 border border-slate-700 rounded-xl text-xs text-slate-100 placeholder-slate-400 outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                        />
+                        {mapSearchQuery && (
+                          <button
+                            type="button"
+                            onClick={() => setMapSearchQuery('')}
+                            className="absolute right-2 top-2 text-slate-400 hover:text-white p-0.5 cursor-pointer"
+                          >
+                            <X className="h-3 w-3" />
+                          </button>
+                        )}
+                      </div>
+
+                      {/* Quick Dropdown & Requerimientos if Filter drawer open */}
+                      {isAdvancedFiltersOpen && (
+                        <div className="flex flex-wrap items-center gap-2 animate-in fade-in duration-150">
+                          {/* Zone Filter */}
+                          <select
+                            value={mapZoneFilter}
+                            onChange={(e) => setMapZoneFilter(e.target.value as any)}
+                            className="bg-slate-800 border border-slate-700 text-slate-200 rounded-xl px-2.5 py-1.5 text-xs font-bold outline-none cursor-pointer"
+                          >
+                            <option value="all">Todas las Zonas</option>
+                            <option value="urbano">🏢 Solo Zona Urbana</option>
+                            <option value="rural">🏡 Solo Zona Rural</option>
+                          </select>
+
+                          {/* Requerimientos Button */}
+                          <button
+                            type="button"
+                            onClick={() => setIsMultiFilterModalOpen(true)}
+                            className="px-2.5 py-1.5 bg-blue-600/30 hover:bg-blue-600/50 border border-blue-500/50 text-blue-300 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer"
+                          >
+                            <Filter className="h-3 w-3 text-blue-400" />
+                            <span>Insumos ({selectedSubtipologiaCodes.length})</span>
+                          </button>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Row 3: Severity Pills in Fullscreen (if filters open) */}
+                    {isAdvancedFiltersOpen && (
+                      <div className="flex flex-wrap items-center gap-2 pt-2 border-t border-slate-800 text-xs animate-in fade-in duration-150">
+                        {/* Daño Vivienda Pills */}
+                        <div className="flex items-center gap-1 flex-wrap bg-slate-800/80 border border-slate-700 p-1 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsHousingDamageFilterActive(!isHousingDamageFilterActive);
+                              setMapCurrentPage(1);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 ${
+                              isHousingDamageFilterActive ? 'bg-rose-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <Home className="h-3 w-3" />
+                            <span>Daño Vivienda:</span>
+                          </button>
+                          {['Colapso Total', 'Grave', 'Leve'].map((lvl) => {
+                            const isSelected = selectedDamageLevels.includes(lvl);
+                            return (
+                              <button
+                                key={lvl}
+                                type="button"
+                                onClick={() => {
+                                  setIsHousingDamageFilterActive(true);
+                                  setMapCurrentPage(1);
+                                  setSelectedDamageLevels((prev) =>
+                                    prev.includes(lvl) ? (prev.length === 1 ? prev : prev.filter((x) => x !== lvl)) : [...prev, lvl]
+                                  );
+                                }}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border transition cursor-pointer flex items-center gap-1 ${
+                                  isSelected && isHousingDamageFilterActive
+                                    ? lvl === 'Colapso Total'
+                                      ? 'bg-rose-600 text-white border-rose-500'
+                                      : lvl === 'Grave'
+                                      ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                      : 'bg-slate-700 text-white border-slate-600'
+                                    : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white'
+                                }`}
+                              >
+                                <span>{lvl === 'Colapso Total' ? '🔴' : lvl === 'Grave' ? '🟡' : '⚪'}</span>
+                                <span>{lvl}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+
+                        {/* Daño Techo Pills */}
+                        <div className="flex items-center gap-1 flex-wrap bg-slate-800/80 border border-slate-700 p-1 rounded-xl">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setIsRoofDamageFilterActive(!isRoofDamageFilterActive);
+                              setMapCurrentPage(1);
+                            }}
+                            className={`px-2 py-0.5 rounded-lg text-[10px] font-black transition cursor-pointer flex items-center gap-1 ${
+                              isRoofDamageFilterActive ? 'bg-amber-600 text-white' : 'text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            <AlertTriangle className="h-3 w-3" />
+                            <span>Daño Techo:</span>
+                          </button>
+                          {['Colapso Total', 'Grave', 'Leve'].map((lvl) => {
+                            const isSelected = selectedRoofDamageLevels.includes(lvl);
+                            return (
+                              <button
+                                key={lvl}
+                                type="button"
+                                onClick={() => {
+                                  setIsRoofDamageFilterActive(true);
+                                  setMapCurrentPage(1);
+                                  setSelectedRoofDamageLevels((prev) =>
+                                    prev.includes(lvl) ? (prev.length === 1 ? prev : prev.filter((x) => x !== lvl)) : [...prev, lvl]
+                                  );
+                                }}
+                                className={`px-2 py-0.5 rounded-lg text-[10px] font-extrabold border transition cursor-pointer flex items-center gap-1 ${
+                                  isSelected && isRoofDamageFilterActive
+                                    ? lvl === 'Colapso Total'
+                                      ? 'bg-rose-600 text-white border-rose-500'
+                                      : lvl === 'Grave'
+                                      ? 'bg-amber-500 text-slate-950 border-amber-400'
+                                      : 'bg-slate-700 text-white border-slate-600'
+                                    : 'bg-slate-800/50 text-slate-400 border-slate-700 hover:text-white'
+                                }`}
+                              >
+                                <span>{lvl === 'Colapso Total' ? '🔴' : lvl === 'Grave' ? '🟡' : '⚪'}</span>
+                                <span>{lvl}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
                 <div className="flex-1 w-full h-full min-h-[350px] rounded-2xl overflow-hidden relative">
-                  {/* Floating Direct Map Switcher (Modern Glassmorphism) */}
-                  <div className="absolute top-3 right-3 z-[999] bg-slate-950/85 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-700/70 flex items-center gap-1 scale-90 sm:scale-100 origin-top-right">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMapDisplayMode('sectores');
-                        showToast('Modo: Conteo por Sector', 'success');
-                      }}
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                        mapDisplayMode === 'sectores'
-                          ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
-                          : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                      }`}
-                      title="Mostrar conteo agrupado por sector"
-                    >
-                      <Building2 className="h-3.5 w-3.5" />
-                      <span>Sectores</span>
-                    </button>
+                  {/* Floating Direct Map Switcher (Modern Glassmorphism - when NOT fullscreen) */}
+                  {!isMapFullScreen && (
+                    <div className="absolute top-3 right-3 z-[999] bg-slate-950/85 backdrop-blur-md p-1 rounded-2xl shadow-xl border border-slate-700/70 flex items-center gap-1 scale-90 sm:scale-100 origin-top-right">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapDisplayMode('sectores');
+                          showToast('Modo: Conteo por Sector', 'success');
+                        }}
+                        className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                          mapDisplayMode === 'sectores'
+                            ? 'bg-amber-500 text-slate-950 shadow-md ring-2 ring-amber-300'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                        }`}
+                        title="Mostrar conteo agrupado por sector"
+                      >
+                        <Building2 className="h-3.5 w-3.5" />
+                        <span>Sectores</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMapDisplayMode('individual');
-                        showToast('Modo: Puntos Individuales', 'success');
-                      }}
-                      className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
-                        mapDisplayMode === 'individual'
-                          ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
-                          : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
-                      }`}
-                      title="Mostrar puntos exactos individuales"
-                    >
-                      <MapPin className="h-3.5 w-3.5" />
-                      <span>Puntos</span>
-                    </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapDisplayMode('individual');
+                          showToast('Modo: Puntos Individuales', 'success');
+                        }}
+                        className={`px-2.5 sm:px-3 py-1.5 rounded-xl text-[11px] sm:text-xs font-black flex items-center gap-1.5 transition-all cursor-pointer ${
+                          mapDisplayMode === 'individual'
+                            ? 'bg-blue-600 text-white shadow-md ring-2 ring-blue-300'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800/80'
+                        }`}
+                        title="Mostrar puntos exactos individuales"
+                      >
+                        <MapPin className="h-3.5 w-3.5" />
+                        <span>Puntos</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setMapDisplayMode('ambos');
-                        showToast('Modo: Ambos (Sectores e Individuales)', 'success');
-                      }}
-                      className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
-                        mapDisplayMode === 'ambos'
-                          ? 'bg-emerald-600 text-white shadow-md'
-                          : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
-                      }`}
-                      title="Mostrar ambos"
-                    >
-                      <Globe2 className="h-3.5 w-3.5" />
-                      <span className="hidden sm:inline">Ambos</span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMapDisplayMode('ambos');
+                          showToast('Modo: Ambos (Sectores e Individuales)', 'success');
+                        }}
+                        className={`px-2 sm:px-2.5 py-1.5 rounded-xl text-[11px] sm:text-xs font-bold transition-all cursor-pointer ${
+                          mapDisplayMode === 'ambos'
+                            ? 'bg-emerald-600 text-white shadow-md'
+                            : 'text-slate-400 hover:text-white hover:bg-slate-800/80'
+                        }`}
+                        title="Mostrar ambos"
+                      >
+                        <Globe2 className="h-3.5 w-3.5" />
+                        <span className="hidden sm:inline">Ambos</span>
+                      </button>
+                    </div>
+                  )}
 
                   <MapContainer
                     center={[5.239971, -75.782206]}
                     zoom={14}
                     scrollWheelZoom={true}
+                    preferCanvas={true}
                     style={{ height: '100%', width: '100%' }}
                   >
                     <EmergencyMapController isFullScreen={isMapFullScreen} />
@@ -3810,138 +4176,98 @@ export const CatastrofesView: React.FC = () => {
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                     />
 
-                    {/* 1. Sector Summary Markers with Traffic Light Severity Average & Counts */}
+                    {/* 1. Sector Summary Markers with Precomputed Traffic Light Severity Average & Counts */}
                     {(mapDisplayMode === 'sectores' || mapDisplayMode === 'ambos') &&
-                      sectorGeoData.map((sec, idx) => {
-                        if (!sec.hasValidCoordinates || sec.latitude === null || sec.longitude === null || sec.requestCount <= 0) return null;
-                        const sectorRequests = solicitudesFiltradasMapa.filter((sol) => {
-                          if (sol.id_sector && sec.id_sector) {
-                            return sol.id_sector === sec.id_sector;
-                          }
-                          if (!sol.latitud || !sol.longitud) return false;
-                          const dLat = sec.latitude! - sol.latitud;
-                          const dLng = sec.longitude! - sol.longitud;
-                          return dLat * dLat + dLng * dLng < 0.001;
-                        });
-
-                        // Promedio de gravedad: Colapso Total = 3, Grave = 2, Leve = 1, Ninguno = 0
-                        let totalScore = 0;
-                        let countWithEval = 0;
-                        let pendingCount = 0;
-                        sectorRequests.forEach((s) => {
-                          if (s.estado_codigo === 'pending') pendingCount++;
-                          const level = s.afectacion_nivel;
-                          if (level === 'Colapso Total') { totalScore += 3; countWithEval++; }
-                          else if (level === 'Grave') { totalScore += 2; countWithEval++; }
-                          else if (level === 'Leve') { totalScore += 1; countWithEval++; }
-                          else { countWithEval++; }
-                        });
-
-                        const avgScore = countWithEval > 0 ? totalScore / countWithEval : 0;
-
-                        let badgeColor: 'red' | 'yellow' | 'gray' | 'green' = 'gray';
-                        if (avgScore >= 2.2 || sectorRequests.some((s) => s.afectacion_nivel === 'Colapso Total')) {
-                          badgeColor = 'red';
-                        } else if (avgScore >= 1.2 || sectorRequests.some((s) => s.afectacion_nivel === 'Grave')) {
-                          badgeColor = 'yellow';
-                        } else if (avgScore > 0 || sectorRequests.some((s) => s.afectacion_nivel === 'Leve')) {
-                          badgeColor = 'yellow';
-                        } else if (pendingCount === 0 && sectorRequests.length > 0) {
-                          badgeColor = 'green';
-                        } else {
-                          badgeColor = 'gray';
-                        }
-
-                        return (
-                          <Marker
-                            key={`sector-${idx}`}
-                            position={[sec.latitude!, sec.longitude!]}
-                            title={`Sector: ${sec.name} (${sec.requestCount} solicitudes)`}
-                            icon={getSectorSummaryMarkerIcon(sec.requestCount, badgeColor, false)}
-                            eventHandlers={{
-                              click: () => {
-                                if (sec.id_sector) {
-                                  setSelectedSectorIds([sec.id_sector]);
-                                  showToast(`Filtrando mapa y lista por ${sec.name} (${sec.requestCount} solicitudes)`, 'success');
-                                }
-                              },
-                            }}
+                      sectorAggregatedData.map((sec, idx) => (
+                        <Marker
+                          key={`sector-${sec.id_sector ?? idx}`}
+                          position={[sec.latitude!, sec.longitude!]}
+                          title={`Sector: ${sec.name} (${sec.requestCount} solicitudes)`}
+                          icon={getSectorSummaryMarkerIcon(sec.requestCount, sec.badgeColor, false)}
+                          eventHandlers={{
+                            click: () => {
+                              if (sec.id_sector) {
+                                setSelectedSectorIds([sec.id_sector]);
+                                showToast(`Filtrando mapa y lista por ${sec.name} (${sec.requestCount} solicitudes)`, 'success');
+                              }
+                            },
+                          }}
+                        >
+                          <Tooltip
+                            direction="top"
+                            offset={[0, -20]}
+                            opacity={1}
+                            className="sector-hover-tooltip"
                           >
-                            <Tooltip
-                              direction="top"
-                              offset={[0, -20]}
-                              opacity={1}
-                              className="sector-hover-tooltip"
-                            >
-                              <div className="bg-slate-950 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-xl flex items-center gap-1.5 border border-slate-700">
-                                <span className={`w-2 h-2 rounded-full ${badgeColor === 'red' ? 'bg-rose-500 animate-pulse' : badgeColor === 'yellow' ? 'bg-amber-500 animate-pulse' : badgeColor === 'green' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
-                                <span>{sec.name}</span>
-                                <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
-                                  {sec.requestCount} sol.
+                            <div className="bg-slate-950 text-white px-2.5 py-1 rounded-xl text-xs font-black shadow-xl flex items-center gap-1.5 border border-slate-700">
+                              <span className={`w-2 h-2 rounded-full ${sec.badgeColor === 'red' ? 'bg-rose-500 animate-pulse' : sec.badgeColor === 'yellow' ? 'bg-amber-500 animate-pulse' : sec.badgeColor === 'green' ? 'bg-emerald-500' : 'bg-slate-400'}`}></span>
+                              <span>{sec.name}</span>
+                              <span className="bg-white/20 text-white text-[10px] px-1.5 py-0.2 rounded-full font-mono font-bold">
+                                {sec.requestCount} sol.
+                              </span>
+                            </div>
+                          </Tooltip>
+
+                          <Popup className="sector-list-popup">
+                            <div className="bg-white p-3 space-y-2 max-w-[290px] max-h-[320px] overflow-y-auto text-slate-900 rounded-2xl">
+                              <div className="border-b border-slate-200 pb-1.5 flex justify-between items-center">
+                                <strong className="text-xs font-black uppercase text-slate-900">{sec.name}</strong>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${sec.badgeColor === 'red' ? 'bg-rose-50 text-rose-700 border-rose-200' : sec.badgeColor === 'yellow' ? 'bg-amber-50 text-amber-800 border-amber-200' : sec.badgeColor === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
+                                  {sec.requestCount} solicitudes
                                 </span>
                               </div>
-                            </Tooltip>
 
-                            <Popup className="sector-list-popup">
-                              <div className="bg-white p-3 space-y-2 max-w-[290px] max-h-[320px] overflow-y-auto text-slate-900 rounded-2xl">
-                                <div className="border-b border-slate-200 pb-1.5 flex justify-between items-center">
-                                  <strong className="text-xs font-black uppercase text-slate-900">{sec.name}</strong>
-                                  <span className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${badgeColor === 'red' ? 'bg-rose-50 text-rose-700 border-rose-200' : badgeColor === 'yellow' ? 'bg-amber-50 text-amber-800 border-amber-200' : badgeColor === 'green' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-slate-100 text-slate-700 border-slate-200'}`}>
-                                    {sec.requestCount} solicitudes
-                                  </span>
-                                </div>
-
-                                <div className="space-y-1.5">
-                                  {sectorRequests.slice(0, 6).map((sol) => (
-                                    <div
-                                      key={sol.id_solicitud}
-                                      className="p-2 rounded-xl border border-slate-100 bg-slate-50/70 text-xs space-y-1"
-                                    >
-                                      <div className="flex justify-between items-center">
-                                        <span className="font-mono text-[10px] font-black text-slate-900">
-                                          {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
-                                        </span>
-                                        <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${sol.estado_codigo === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
-                                          {sol.estado_codigo === 'completed' ? 'Atendida' : 'Pendiente'}
-                                        </span>
-                                      </div>
-                                      <p className="font-bold text-slate-800 text-[11px] truncate">{sol.nombre_completo}</p>
-                                      
-                                      <div className="flex items-center gap-1 pt-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => {
-                                            setDetailedRequestId(sol.id_solicitud);
-                                            setIsDetailModalOpen(true);
-                                          }}
-                                          className="flex-1 text-center text-[10px] font-black text-blue-700 hover:text-blue-900 bg-blue-50 py-1 rounded-lg cursor-pointer flex items-center justify-center gap-1"
-                                        >
-                                          <Eye className="h-3 w-3" />
-                                          <span>Ver</span>
-                                        </button>
-                                        <button
-                                          type="button"
-                                          onClick={() => handleEditarSolicitud(sol)}
-                                          className="flex-1 text-center text-[10px] font-black text-amber-950 hover:bg-amber-600 bg-amber-500 py-1 rounded-lg cursor-pointer flex items-center justify-center gap-1"
-                                        >
-                                          <Pencil className="h-3 w-3" />
-                                          <span>Editar</span>
-                                        </button>
-                                      </div>
+                              <div className="space-y-1.5">
+                                {sec.sectorRequests.slice(0, 6).map((sol) => (
+                                  <div
+                                    key={sol.id_solicitud}
+                                    className="p-2 rounded-xl border border-slate-100 bg-slate-50/70 text-xs space-y-1"
+                                  >
+                                    <div className="flex justify-between items-center">
+                                      <span className="font-mono text-[10px] font-black text-slate-900">
+                                        {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                                      </span>
+                                      <span className={`text-[9px] font-black px-1.5 py-0.2 rounded ${sol.estado_codigo === 'completed' ? 'bg-emerald-100 text-emerald-800' : 'bg-rose-100 text-rose-800'}`}>
+                                        {sol.estado_codigo === 'completed' ? 'Atendida' : 'Pendiente'}
+                                      </span>
                                     </div>
-                                  ))}
-                                </div>
+                                    <p className="font-bold text-slate-800 text-[11px] truncate">{sol.nombre_completo}</p>
+                                    
+                                    <div className="flex items-center gap-1 pt-1">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDetailedRequestId(sol.id_solicitud);
+                                          setIsDetailModalOpen(true);
+                                        }}
+                                        className="flex-1 text-center text-[10px] font-black text-blue-700 hover:text-blue-900 bg-blue-50 py-1 rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                      >
+                                        <Eye className="h-3 w-3" />
+                                        <span>Ver</span>
+                                      </button>
+                                      <button
+                                        type="button"
+                                        onClick={() => handleEditarSolicitud(sol)}
+                                        className="flex-1 text-center text-[10px] font-black text-amber-950 hover:bg-amber-600 bg-amber-500 py-1 rounded-lg cursor-pointer flex items-center justify-center gap-1"
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                        <span>Editar</span>
+                                      </button>
+                                    </div>
+                                  </div>
+                                ))}
                               </div>
-                            </Popup>
-                          </Marker>
-                        );
-                      })}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      ))}
 
-                    {/* 2. Individual Solicitud Markers */}
+                    {/* 2. Individual Solicitud Markers with Instant Cached Icons & On-Demand Popups */}
                     {(mapDisplayMode === 'individual' || mapDisplayMode === 'ambos') &&
                       solicitudesFiltradasMapa.map((sol) => {
                         if (!sol.latitud || !sol.longitud) return null;
                         const isPending = sol.estado_codigo === 'pending';
+                        const isSelected = selectedMapPinSol?.id_solicitud === sol.id_solicitud;
                         const icon = getSectorMarkerIcon(
                           sol.afectacion_nivel || 'Ninguno',
                           !isPending
@@ -3973,90 +4299,92 @@ export const CatastrofesView: React.FC = () => {
                               </div>
                             </Tooltip>
 
-                            <Popup className="sector-list-popup">
-                              <div className="bg-white p-3.5 space-y-2.5 max-w-[280px] rounded-2xl text-slate-900">
-                                {/* Popup Header */}
-                                <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
-                                  <span className="font-mono text-xs font-black bg-slate-900 text-white px-2.5 py-0.5 rounded-lg shadow-2xs">
-                                    {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
-                                  </span>
-                                  <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
-                                    isPending
-                                      ? 'bg-rose-50 text-rose-700 border-rose-200'
-                                      : 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                                  }`}>
-                                    {isPending ? 'Pendiente' : '✓ Atendida'}
-                                  </span>
-                                </div>
-
-                                {/* Beneficiary & Sector Info */}
-                                <div className="text-xs space-y-1">
-                                  <strong className="text-slate-900 block font-black text-xs">
-                                    {sol.nombre_completo}
-                                  </strong>
-                                  <span className="text-slate-500 block text-[11px] font-mono">
-                                    Doc: {sol.documento}
-                                  </span>
-                                  <div className="flex items-center gap-1 text-[11px] text-slate-600 pt-0.5">
-                                    <span>📍 Sector: <strong className="text-slate-800">{sol.nombre_sector}</strong></span>
-                                  </div>
-                                  <div className="flex items-center gap-1.5 text-[11px] text-slate-700 pt-0.5">
-                                    <span className="text-slate-500">Daño:</span>
-                                    <span className={`font-black text-[10px] px-2 py-0.5 rounded-md ${
-                                      sol.afectacion_nivel === 'Colapso Total'
-                                        ? 'bg-rose-600 text-white'
-                                        : sol.afectacion_nivel === 'Grave'
-                                        ? 'bg-amber-500 text-slate-950 font-black'
-                                        : sol.afectacion_nivel === 'Leve'
-                                        ? 'bg-slate-700 text-white'
-                                        : 'bg-slate-100 text-slate-700 font-bold border border-slate-200'
+                            {isSelected && (
+                              <Popup className="sector-list-popup" autoPan={false}>
+                                <div className="bg-white p-3.5 space-y-2.5 max-w-[280px] rounded-2xl text-slate-900">
+                                  {/* Popup Header */}
+                                  <div className="border-b border-slate-200 pb-2 flex justify-between items-center">
+                                    <span className="font-mono text-xs font-black bg-slate-900 text-white px-2.5 py-0.5 rounded-lg shadow-2xs">
+                                      {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                                    </span>
+                                    <span className={`text-[10px] font-black px-2.5 py-0.5 rounded-full border ${
+                                      isPending
+                                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                                        : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                                     }`}>
-                                      {sol.afectacion_nivel || 'Sin Evaluar'}
+                                      {isPending ? 'Pendiente' : '✓ Atendida'}
                                     </span>
                                   </div>
-                                </div>
 
-                                {/* Action Buttons */}
-                                <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      setDetailedRequestId(sol.id_solicitud);
-                                      setIsDetailModalOpen(true);
-                                    }}
-                                    className="w-full bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Eye className="h-3.5 w-3.5 text-amber-300" />
-                                    <span>Ver Expediente Completo</span>
-                                  </button>
+                                  {/* Beneficiary & Sector Info */}
+                                  <div className="text-xs space-y-1">
+                                    <strong className="text-slate-900 block font-black text-xs">
+                                      {sol.nombre_completo}
+                                    </strong>
+                                    <span className="text-slate-500 block text-[11px] font-mono">
+                                      Doc: {sol.documento}
+                                    </span>
+                                    <div className="flex items-center gap-1 text-[11px] text-slate-600 pt-0.5">
+                                      <span>📍 Sector: <strong className="text-slate-800">{sol.nombre_sector}</strong></span>
+                                    </div>
+                                    <div className="flex items-center gap-1.5 text-[11px] text-slate-700 pt-0.5">
+                                      <span className="text-slate-500">Daño:</span>
+                                      <span className={`font-black text-[10px] px-2 py-0.5 rounded-md ${
+                                        sol.afectacion_nivel === 'Colapso Total'
+                                          ? 'bg-rose-600 text-white'
+                                          : sol.afectacion_nivel === 'Grave'
+                                          ? 'bg-amber-500 text-slate-950 font-black'
+                                          : sol.afectacion_nivel === 'Leve'
+                                          ? 'bg-slate-700 text-white'
+                                          : 'bg-slate-100 text-slate-700 font-bold border border-slate-200'
+                                      }`}>
+                                        {sol.afectacion_nivel || 'Sin Evaluar'}
+                                      </span>
+                                    </div>
+                                  </div>
 
-                                  <button
-                                    type="button"
-                                    onClick={() => handleEditarSolicitud(sol)}
-                                    className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                                  >
-                                    <Pencil className="h-3.5 w-3.5" />
-                                    <span>Editar esta Solicitud</span>
-                                  </button>
-
-                                  {!isCensoOnlyUser && isPending && (
+                                  {/* Action Buttons */}
+                                  <div className="space-y-1.5 pt-1.5 border-t border-slate-100">
                                     <button
                                       type="button"
                                       onClick={() => {
-                                        setSelectedRequest(sol);
-                                        setRegistroModo('ENTREGA_EXISTENTE');
-                                        setActiveTab('formulario');
-                                        showToast(`Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para atender en formulario.`, 'success');
+                                        setDetailedRequestId(sol.id_solicitud);
+                                        setIsDetailModalOpen(true);
                                       }}
-                                      className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                                      className="w-full bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                     >
-                                      <Package className="h-3.5 w-3.5" />
-                                      <span>Atender esta Solicitud</span>
+                                      <Eye className="h-3.5 w-3.5 text-amber-300" />
+                                      <span>Ver Expediente Completo</span>
                                     </button>
-                                  )}
+
+                                    <button
+                                      type="button"
+                                      onClick={() => handleEditarSolicitud(sol)}
+                                      className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                    >
+                                      <Pencil className="h-3.5 w-3.5" />
+                                      <span>Editar esta Solicitud</span>
+                                    </button>
+
+                                    {!isCensoOnlyUser && isPending && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setSelectedRequest(sol);
+                                          setRegistroModo('ENTREGA_EXISTENTE');
+                                          setActiveTab('formulario');
+                                          showToast(`Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para atender en formulario.`, 'success');
+                                        }}
+                                        className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center"
+                                      >
+                                        <Package className="h-3.5 w-3.5" />
+                                        <span>Atender esta Solicitud</span>
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
-                              </div>
-                            </Popup>
+                              </Popup>
+                            )}
                           </Marker>
                         );
                       })}
@@ -4142,19 +4470,21 @@ export const CatastrofesView: React.FC = () => {
                     </div>
                   ) : (
                     /* Floating Quick Deliveries Pill on Mobile */
-                    <div className="lg:hidden absolute bottom-3 left-3 right-3 z-[990] flex justify-center pointer-events-none">
-                      <button
-                        type="button"
-                        onClick={() => setMobileMapTab('lista')}
-                        className="pointer-events-auto bg-slate-900/90 hover:bg-slate-950 backdrop-blur-md text-white text-xs font-black px-4 py-2.5 rounded-full shadow-2xl border border-slate-700 flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer"
-                      >
-                        <Package className="h-4 w-4 text-amber-400" />
-                        <span>{solicitudesPendientes.length} pendientes de entrega</span>
-                        <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
-                          Ver lista 📋
-                        </span>
-                      </button>
-                    </div>
+                    !isMapFullScreen && (
+                      <div className="lg:hidden absolute bottom-3 left-3 right-3 z-[990] flex justify-center pointer-events-none">
+                        <button
+                          type="button"
+                          onClick={() => setMobileMapTab('lista')}
+                          className="pointer-events-auto bg-slate-900/90 hover:bg-slate-950 backdrop-blur-md text-white text-xs font-black px-4 py-2.5 rounded-full shadow-2xl border border-slate-700 flex items-center gap-2 transition-all transform active:scale-95 cursor-pointer"
+                        >
+                          <Package className="h-4 w-4 text-amber-400" />
+                          <span>{solicitudesPendientes.length} pendientes de entrega</span>
+                          <span className="bg-rose-600 text-white text-[10px] px-2 py-0.5 rounded-full font-mono">
+                            Ver lista 📋
+                          </span>
+                        </button>
+                      </div>
+                    )
                   )}
                 </div>
               </div>

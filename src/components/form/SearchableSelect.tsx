@@ -66,7 +66,7 @@ export default function SearchableSelect({
   };
 
   return (
-    <div ref={wrapperRef} className={`relative w-full ${className}`}>
+    <div ref={wrapperRef} className={`relative w-full min-w-0 ${className}`}>
       {/* Hidden input for HTML5 validation if required */}
       {required && (
         <input
@@ -84,44 +84,44 @@ export default function SearchableSelect({
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setIsOpen(!isOpen)}
-        className={`w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-900 border rounded-xl text-left text-sm transition shadow-sm focus:outline-none focus:ring-2 focus:ring-indigo-500/50 ${
+        className={`w-full flex items-center justify-between px-3.5 py-2.5 bg-slate-50 border rounded-xl text-left text-xs font-semibold transition shadow-2xs focus:outline-none focus:ring-2 focus:ring-blue-500 ${
           disabled
-            ? 'bg-slate-800/50 border-slate-800 text-slate-500 cursor-not-allowed'
+            ? 'bg-slate-100 border-slate-200 text-slate-400 cursor-not-allowed'
             : isOpen
-            ? 'border-indigo-500 ring-2 ring-indigo-500/20 text-white'
-            : 'border-slate-700 hover:border-slate-600 text-slate-200'
+            ? 'bg-white border-blue-500 ring-2 ring-blue-500/20 text-slate-900'
+            : 'border-slate-300 hover:bg-white hover:border-slate-400 text-slate-800'
         }`}
       >
-        <span className={`truncate ${!selectedOption ? 'text-slate-500' : 'text-slate-100 font-medium'}`}>
+        <span className={`truncate flex-1 min-w-0 ${!selectedOption ? 'text-slate-400' : 'text-slate-900 font-bold'}`}>
           {selectedOption ? selectedOption.label : placeholder}
         </span>
         <ChevronDown
-          className={`h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0 ml-2 ${
-            isOpen ? 'rotate-180 text-indigo-400' : ''
+          className={`h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0 ml-1.5 ${
+            isOpen ? 'rotate-180 text-blue-600' : ''
           }`}
         />
       </button>
 
       {/* Dropdown Menu */}
       {isOpen && (
-        <div className="absolute z-50 w-full mt-1.5 bg-slate-900 border border-slate-700/80 rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-100 backdrop-blur-xl">
+        <div className="absolute z-[80] w-full min-w-[240px] mt-1.5 bg-white border border-slate-200 rounded-2xl shadow-xl overflow-hidden animate-in fade-in zoom-in-95 duration-100">
           {/* Search Box */}
-          <div className="p-2 border-b border-slate-800 bg-slate-950/40">
+          <div className="p-2 border-b border-slate-100 bg-slate-50/80">
             <div className="relative flex items-center">
-              <Search className="absolute left-3 h-4 w-4 text-slate-400 pointer-events-none" />
+              <Search className="absolute left-3 h-3.5 w-3.5 text-slate-400 pointer-events-none" />
               <input
                 ref={inputRef}
                 type="text"
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
                 placeholder={searchPlaceholder}
-                className="w-full bg-slate-900 border border-slate-700/70 rounded-xl pl-9 pr-8 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-indigo-500 transition"
+                className="w-full bg-white border border-slate-300 rounded-xl pl-8 pr-8 py-1.5 text-xs text-slate-900 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition font-medium"
               />
               {searchTerm && (
                 <button
                   type="button"
                   onClick={() => setSearchTerm('')}
-                  className="absolute right-2.5 text-slate-400 hover:text-slate-200 p-0.5"
+                  className="absolute right-2 text-slate-400 hover:text-slate-700 p-0.5 rounded-md cursor-pointer"
                 >
                   <X className="h-3.5 w-3.5" />
                 </button>
@@ -130,9 +130,9 @@ export default function SearchableSelect({
           </div>
 
           {/* Options List */}
-          <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-800/30">
+          <div className="max-h-60 overflow-y-auto p-1.5 space-y-0.5 divide-y divide-slate-100">
             {filteredOptions.length === 0 ? (
-              <div className="py-6 text-center text-xs text-slate-400">
+              <div className="py-6 text-center text-xs text-slate-400 font-medium">
                 No se encontraron resultados para "{searchTerm}"
               </div>
             ) : (
@@ -144,19 +144,19 @@ export default function SearchableSelect({
                     onClick={() => handleSelect(option.value)}
                     className={`flex items-center justify-between px-3 py-2 rounded-xl text-xs cursor-pointer transition select-none ${
                       isSelected
-                        ? 'bg-indigo-600/20 text-indigo-300 font-semibold border border-indigo-500/30'
-                        : 'text-slate-300 hover:bg-slate-800 hover:text-white'
+                        ? 'bg-blue-50 text-blue-900 font-bold border border-blue-200'
+                        : 'text-slate-700 hover:bg-slate-100 hover:text-slate-900'
                     }`}
                   >
-                    <div className="truncate pr-2">
+                    <div className="truncate pr-2 flex-1 min-w-0">
                       <span className="block truncate">{option.label}</span>
                       {option.sublabel && (
-                        <span className="block text-[10px] text-slate-400 mt-0.5 truncate">
+                        <span className="block text-[10px] text-slate-400 mt-0.5 truncate font-normal">
                           {option.sublabel}
                         </span>
                       )}
                     </div>
-                    {isSelected && <Check className="h-4 w-4 text-indigo-400 shrink-0 ml-1" />}
+                    {isSelected && <Check className="h-4 w-4 text-blue-600 shrink-0 ml-1" />}
                   </div>
                 );
               })
@@ -167,3 +167,4 @@ export default function SearchableSelect({
     </div>
   );
 }
+
