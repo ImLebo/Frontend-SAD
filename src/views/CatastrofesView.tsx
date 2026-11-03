@@ -58,6 +58,8 @@ import SearchableSelect from '../components/form/SearchableSelect';
 import LocationPickerModal from '../components/maps/LocationPickerModal';
 import PendingRequestPickerModal from '../components/modals/PendingRequestPickerModal';
 import { SolicitudDetailModal } from '../components/modals/SolicitudDetailModal';
+import { GestionNucleosFamiliaresSAD } from '../components/nucleos/GestionNucleosFamiliaresSAD';
+import { apiClient } from '../api/client';
 import { DISASTER_TYPOLOGIES } from '../constants/disasterTypologies';
 import { getSectorMarkerIcon, getSectorSummaryMarkerIcon } from '../components/maps/sectorMarkerIcon';
 import { getSectorsGeoData, assignRequestsToSectors } from '../utils/sectorDataHelper';
@@ -107,7 +109,7 @@ export const CatastrofesView: React.FC = () => {
   const { user } = useAuth();
 
   // Navigation tabs inside module: formulario | mapa | historial
-  const [activeTab, setActiveTab] = useState<'formulario' | 'mapa' | 'historial'>('formulario');
+  const [activeTab, setActiveTab] = useState<'formulario' | 'mapa' | 'historial' | 'nucleos'>('formulario');
 
   // Catalogs
   const [sectores, setSectores] = useState<SectorItem[]>([]);
@@ -149,6 +151,120 @@ export const CatastrofesView: React.FC = () => {
   const [fecha, setFecha] = useState(new Date().toISOString().split('T')[0]);
   const [grupoEtnicoCiudadano, setGrupoEtnicoCiudadano] = useState('Ninguno de los anteriores');
   const [parentescoCiudadano, setParentescoCiudadano] = useState('Jefe(a) o cabeza del hogar');
+  const [tipoDestinatario, setTipoDestinatario] = useState<'INDIVIDUAL' | 'NUCLEO_FAMILIAR' | 'COMUNIDAD'>('NUCLEO_FAMILIAR');
+  const [nombreComunidad, setNombreComunidad] = useState('');
+  const [idNucleoVinculado, setIdNucleoVinculado] = useState<number | null>(null);
+  const [nombreNucleoVinculado, setNombreNucleoVinculado] = useState<string>('');
+  const [buscandoNucleoDoc, setBuscandoNucleoDoc] = useState(false);
+  const [busquedaGeneralQuery, setBusquedaGeneralQuery] = useState('');
+  const [resultadosBusquedaPersonas, setResultadosBusquedaPersonas] = useState<any[]>([]);
+  const [resultadosBusquedaNucleos, setResultadosBusquedaNucleos] = useState<any[]>([]);
+  const [mostrarResultadosBusqueda, setMostrarResultadosBusqueda] = useState(false);
+  const [editandoNucleoInline, setEditandoNucleoInline] = useState(false);
+
+  const cargarDatosDesdeNucleo = (nf: any, personaRef?: any) => {
+    setIdNucleoVinculado(nf.id_nucleo);
+    setNombreNucleoVinculado(nf.nombre_nucleo || nf.codigo_nucleo || `Núcleo #${nf.id_nucleo}`);
+    if (nf.id_sector) setSectorId(Number(nf.id_sector));
+    if (nf.direccion) setDireccion(nf.direccion);
+    const todosMiembros = Array.isArray(nf.miembros) ? nf.miembros : [];
+    const titular =
+      personaRef ||
+      todosMiembros.find((m: any) => m.estado_miembro === 'ACTIVO' && m.es_cabeza_hogar) ||
+      todosMiembros.find((m: any) => m.estado_miembro === 'ACTIVO');
+    if (titular) {
+      if (titular.documento) setDocumento(titular.documento);
+      if (titular.nombres) setNombres(titular.nombres);
+      if (titular.apellidos) setApellidos(titular.apellidos);
+      if (titular.telefono) setTelefono(titular.telefono);
+    }
+    const acomp = todosMiembros.filter(
+      (m: any) => m.estado_miembro === 'ACTIVO' && (!titular || m.documento !== titular.documento),
+    );
+    setNucleoFamiliar(
+      acomp.map((m: any, idx: number) => ({
+        id: `sync-member-${idx}-${Date.now()}`,
+        nombres: m.nombres || '',
+        apellidos: m.apellidos || '',
+        tipo_documento: 'CC',
+        documento: m.documento || '',
+        fecha_nacimiento: m.fecha_nacimiento || '',
+        parentesco: m.nombre_rol || m.codigo_rol || 'Otro familiar / Pariente',
+        identidad_genero: m.sexo === 'F' ? 'Femenino' : 'Masculino',
+        grupo_etnico: 'Ninguno',
+        telefono: m.telefono || '',
+      })),
+    );
+  };
+
+  const handleBuscarPorNombreOCedula = async (termino?: string) => {
+    const q = (termino ?? busquedaGeneralQuery ?? documento).trim();
+    if (!q) {
+      showToast('Ingresa un nombre, apellido o número de cédula para buscar.', 'warning');
+      return;
+    }
+    setBuscandoNucleoDoc(true);
+    try {
+      const [resP, resN] = await Promise.all([
+        apiClient.get('/nucleos-familiares/personas-busqueda', { params: { search: q, limit: 15 } }),
+        apiClient.get('/nucleos-familiares', { params: { search: q, limit: 15 } }),
+      ]);
+      setResultadosBusquedaPersonas(Array.isArray(resP.data) ? resP.data : []);
+      setResultadosBusquedaNucleos(Array.isArray(resN.data) ? resN.data : []);
+      setMostrarResultadosBusqueda(true);
+    } catch {
+      showToast('Error al buscar personas y núcleos familiares.', 'error');
+    } finally {
+      setBuscandoNucleoDoc(false);
+    }
+  };
+
+  const handleGuardarEdicionNucleoInline = async () => {
+    if (!idNucleoVinculado) return;
+    try {
+      await apiClient.put(`/nucleos-familiares/${idNucleoVinculado}`, {
+        nombre_nucleo: nombreNucleoVinculado.trim() || undefined,
+        id_sector: sectorId,
+        direccion: direccion.trim() || undefined,
+        telefono_contacto: telefono.trim() || undefined,
+      });
+      setEditandoNucleoInline(false);
+      showToast('Núcleo Familiar modificado (nombre, sector y dirección) y sincronizado con SIGA.', 'success');
+    } catch {
+      showToast('No se pudo actualizar el núcleo familiar.', 'error');
+    }
+  };
+
+  const handleBuscarNucleoPorDocumento = async () => {
+    if (!documento.trim()) {
+      showToast('Ingresa primero el número de documento para buscar en SAD / SIGA.', 'warning');
+      return;
+    }
+    setBuscandoNucleoDoc(true);
+    try {
+      const res = await apiClient.get(`/nucleos-familiares/por-documento/${encodeURIComponent(documento.trim())}`);
+      const data = res.data;
+      if (data?.encontrado && data?.persona) {
+        const p = data.persona;
+        if (p.nombres) setNombres(p.nombres);
+        if (p.apellidos) setApellidos(p.apellidos);
+        if (p.telefono) setTelefono(p.telefono);
+        if (p.direccion) setDireccion(p.direccion);
+        if (data.nucleo_familiar) {
+          cargarDatosDesdeNucleo(data.nucleo_familiar, p);
+          showToast(`Ciudadano y Núcleo Familiar (${data.nucleo_familiar.codigo_nucleo || data.nucleo_familiar.nombre_nucleo}) cargados automáticamente.`, 'success');
+        } else {
+          showToast('Ciudadano encontrado y autocompletado.', 'success');
+        }
+      } else {
+        showToast('No se encontró un registro previo con ese documento; puedes registrarlo como nuevo.', 'warning');
+      }
+    } catch {
+      showToast('Error al consultar núcleo familiar por documento.', 'error');
+    } finally {
+      setBuscandoNucleoDoc(false);
+    }
+  };
 
   // Coordinates
   const [latitud, setLatitud] = useState<number>(5.239971);
@@ -937,6 +1053,9 @@ export const CatastrofesView: React.FC = () => {
     setTipoBienRufe('Vivienda');
     setVoboCmgrd(false);
     setSelectedRequest(null);
+    setTipoDestinatario('NUCLEO_FAMILIAR');
+    setNombreComunidad('');
+    setIdNucleoVinculado(null);
   };
 
   // Cargar entrega para edición completa
@@ -1136,6 +1255,9 @@ export const CatastrofesView: React.FC = () => {
 
         const payload = {
           id_evento: selectedEventoId,
+          tipo_destinatario: tipoDestinatario,
+          id_nucleo: idNucleoVinculado,
+          nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1226,6 +1348,9 @@ export const CatastrofesView: React.FC = () => {
 
         const payload = {
           id_evento: selectedEventoId,
+          tipo_destinatario: tipoDestinatario,
+          id_nucleo: idNucleoVinculado,
+          nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1306,6 +1431,9 @@ export const CatastrofesView: React.FC = () => {
 
         const payload = {
           id_evento: selectedEventoId,
+          tipo_destinatario: tipoDestinatario,
+          id_nucleo: idNucleoVinculado,
+          nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1338,6 +1466,9 @@ export const CatastrofesView: React.FC = () => {
 
         const payload = {
           id_solicitud: selectedRequest.id_solicitud,
+          tipo_destinatario: selectedRequest.tipo_destinatario || tipoDestinatario,
+          id_nucleo: selectedRequest.id_nucleo || idNucleoVinculado,
+          nombre_comunidad: selectedRequest.nombre_comunidad || (tipoDestinatario === 'COMUNIDAD' ? nombreComunidad.trim() : undefined),
           id_item: mappedItems[0]?.id_item || itemsAyuda[0]?.id_item || 1,
           cantidad: mappedItems[0]?.cantidad || cantidadAyuda || totalCantidadCalculada || 1,
           items_entregados: mappedItems.length > 0 ? mappedItems : undefined,
@@ -1417,7 +1548,7 @@ export const CatastrofesView: React.FC = () => {
           </div>
 
           {/* Minimalist Segmented Navigation Tabs */}
-          <div className="w-full md:w-auto grid grid-cols-3 sm:flex items-center justify-between md:justify-start gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 min-w-0">
+          <div className="w-full md:w-auto grid grid-cols-2 sm:flex items-center justify-between md:justify-start gap-1 bg-slate-100/90 p-1 rounded-xl border border-slate-200/80 min-w-0">
             <button
               type="button"
               onClick={() => setActiveTab('formulario')}
@@ -1472,6 +1603,20 @@ export const CatastrofesView: React.FC = () => {
                 }`}
               >
                 {historialRegistros.length}
+              </span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab('nucleos')}
+              className={`px-2 sm:px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center justify-center gap-1.5 transition-all cursor-pointer min-w-0 ${
+                activeTab === 'nucleos'
+                  ? 'bg-white text-blue-700 shadow-2xs font-black'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">Núcleos Familiares
               </span>
             </button>
           </div>
@@ -2011,6 +2156,228 @@ export const CatastrofesView: React.FC = () => {
                     <div>
                       <h3 className="font-extrabold text-sm text-slate-900">1. Identificación y Ubicación Geográfica</h3>
                       <p className="text-[11px] text-slate-500">Datos personales del damnificado y georreferenciación exacta</p>
+                    </div>
+                  </div>
+
+                  {/* Alcance / Tipo de Destinatario (Individual, Núcleo Familiar, Comunidad) + Búsqueda por Nombre o Cédula SIGA/SAD */}
+                  <div className="bg-blue-50/60 border border-blue-200 rounded-2xl p-3.5 space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-extrabold text-blue-950">
+                        Alcance de la Solicitud / Entrega y Búsqueda por Nombre o Cédula (Sincronizado con SIGA):
+                      </span>
+                      <button
+                        type="button"
+                        onClick={handleBuscarNucleoPorDocumento}
+                        disabled={buscandoNucleoDoc}
+                        className="px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 shadow-2xs cursor-pointer disabled:opacity-50"
+                      >
+                        <Search className="h-3.5 w-3.5" />
+                        <span>{buscandoNucleoDoc ? 'Consultando...' : 'Autocompletar por Cédula'}</span>
+                      </button>
+                    </div>
+
+                    {/* Buscador general por Nombre o Cédula (Personas Individuales y Núcleos Familiares) */}
+                    <div className="flex flex-col sm:flex-row gap-2">
+                      <div className="relative flex-1">
+                        <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-slate-400" />
+                        <input
+                          type="text"
+                          value={busquedaGeneralQuery}
+                          onChange={(e) => setBusquedaGeneralQuery(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              handleBuscarPorNombreOCedula(busquedaGeneralQuery);
+                            }
+                          }}
+                          placeholder="Buscar Persona Individual o Núcleo Familiar por nombre, apellido, cédula o código NUC..."
+                          className="w-full pl-9 pr-3 py-2 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-900"
+                        />
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleBuscarPorNombreOCedula(busquedaGeneralQuery)}
+                        disabled={buscandoNucleoDoc}
+                        className="px-4 py-2 bg-indigo-700 hover:bg-indigo-800 text-white rounded-xl text-xs font-bold cursor-pointer"
+                      >
+                        Buscar Persona / Núcleo
+                      </button>
+                    </div>
+
+                    {mostrarResultadosBusqueda && (
+                      <div className="bg-white border border-blue-200 rounded-xl p-3 space-y-2 max-h-60 overflow-y-auto">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-bold text-slate-600">
+                            Personas ({resultadosBusquedaPersonas.length}) • Núcleos Familiares ({resultadosBusquedaNucleos.length})
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setMostrarResultadosBusqueda(false)}
+                            className="text-xs font-bold text-slate-400 hover:text-slate-600"
+                          >
+                            Cerrar
+                          </button>
+                        </div>
+                        {resultadosBusquedaNucleos.map((nf) => (
+                          <div
+                            key={`nuc-${nf.id_nucleo}`}
+                            onClick={() => {
+                              cargarDatosDesdeNucleo(nf);
+                              setMostrarResultadosBusqueda(false);
+                              showToast(`Núcleo ${nf.nombre_nucleo} vinculado.`, 'success');
+                            }}
+                            className="p-2 rounded-lg border border-indigo-100 hover:bg-indigo-50 cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <div>
+                              <span className="font-mono font-bold text-indigo-700 mr-1.5">{nf.codigo_nucleo}</span>
+                              <strong className="text-slate-900">{nf.nombre_nucleo}</strong>
+                              <span className="text-slate-500 ml-2">• Sector: {nf.nombre_sector} ({nf.direccion})</span>
+                            </div>
+                            <span className="px-2 py-0.5 bg-indigo-600 text-white rounded text-[10px] font-bold">
+                              Cargar Núcleo
+                            </span>
+                          </div>
+                        ))}
+                        {resultadosBusquedaPersonas.map((p) => (
+                          <div
+                            key={`per-${p.id_persona}`}
+                            onClick={() => {
+                              setDocumento(p.documento || '');
+                              setNombres(p.nombres || '');
+                              setApellidos(p.apellidos || '');
+                              if (p.telefono) setTelefono(p.telefono);
+                              if (p.direccion) setDireccion(p.direccion);
+                              if (p.id_sector) setSectorId(Number(p.id_sector));
+                              if (p.id_nucleo) {
+                                setIdNucleoVinculado(p.id_nucleo);
+                                setNombreNucleoVinculado(p.nombre_nucleo || p.codigo_nucleo || '');
+                              }
+                              setMostrarResultadosBusqueda(false);
+                              showToast(`Persona ${p.nombres} ${p.apellidos} cargada.`, 'success');
+                            }}
+                            className="p-2 rounded-lg border border-blue-100 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs"
+                          >
+                            <div>
+                              <strong className="text-slate-900">{p.nombres} {p.apellidos}</strong>
+                              <span className="font-mono text-slate-600 ml-1.5">(CC: {p.documento})</span>
+                              <span className="text-slate-500 ml-2">• Sector: {p.nombre_sector || 'S/D'}</span>
+                            </div>
+                            <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
+                              Cargar Persona
+                            </span>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                      {([
+                        { id: 'INDIVIDUAL', label: 'A Nombre Propio (Individual)', desc: 'Atención a persona individual' },
+                        { id: 'NUCLEO_FAMILIAR', label: 'A Núcleo Familiar', desc: 'Atención al grupo familiar completo' },
+                        { id: 'COMUNIDAD', label: 'A una Comunidad / Sector', desc: 'Asociada al sector y dirección del núcleo' },
+                      ] as const).map((opt) => (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setTipoDestinatario(opt.id)}
+                          className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                            tipoDestinatario === opt.id
+                              ? 'bg-white border-blue-600 ring-2 ring-blue-500/15'
+                              : 'bg-white/70 border-slate-200 hover:bg-white'
+                          }`}
+                        >
+                          <div className="text-xs font-black text-slate-900">{opt.label}</div>
+                          <div className="text-[11px] text-slate-500">{opt.desc}</div>
+                        </button>
+                      ))}
+                    </div>
+                    {tipoDestinatario === 'COMUNIDAD' && (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Seleccionar Sector de la Comunidad *
+                          </label>
+                          <select
+                            value={sectorId}
+                            onChange={(e) => {
+                              const val = Number(e.target.value);
+                              setSectorId(val);
+                              const secObj = sectores.find((s) => s.id_sector === val);
+                              if (secObj && !nombreComunidad.trim()) {
+                                setNombreComunidad(`Comunidad Sector ${secObj.nombre_sector}`);
+                              }
+                            }}
+                            className="w-full px-3.5 py-2 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-900"
+                          >
+                            {sectores.map((s) => (
+                              <option key={s.id_sector} value={s.id_sector}>
+                                {s.nombre_sector}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="block text-xs font-bold text-slate-700 mb-1">
+                            Nombre de la Comunidad / JAC / Sector Beneficiado *
+                          </label>
+                          <input
+                            type="text"
+                            value={nombreComunidad}
+                            onChange={(e) => setNombreComunidad(e.target.value)}
+                            placeholder="Ej: Comunidad Vereda San Pedro / JAC Barrio Centro..."
+                            className="w-full px-3.5 py-2 bg-white border border-blue-300 rounded-xl text-xs font-semibold text-slate-900"
+                          />
+                        </div>
+                      </div>
+                    )}
+                    {idNucleoVinculado && (
+                      <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-3 space-y-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <span className="text-[11px] font-bold text-emerald-900">
+                            ✓ Vinculado al Núcleo Familiar ID #{idNucleoVinculado} ({nombreNucleoVinculado}) — Sincronizado con SIGA
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setEditandoNucleoInline(!editandoNucleoInline)}
+                            className="px-2.5 py-1 bg-white border border-emerald-300 rounded-lg text-[11px] font-bold text-emerald-800 hover:bg-emerald-100 cursor-pointer"
+                          >
+                            {editandoNucleoInline ? 'Cerrar edición' : 'Modificar Núcleo / Sector desde aquí'}
+                          </button>
+                        </div>
+                        {editandoNucleoInline && (
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                            <input
+                              type="text"
+                              value={nombreNucleoVinculado}
+                              onChange={(e) => setNombreNucleoVinculado(e.target.value)}
+                              placeholder="Nombre del Núcleo Familiar"
+                              className="px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs"
+                            />
+                            <select
+                              value={sectorId}
+                              onChange={(e) => setSectorId(Number(e.target.value))}
+                              className="px-2.5 py-1.5 bg-white border border-emerald-300 rounded-lg text-xs font-semibold"
+                            >
+                              {sectores.map((s) => (
+                                <option key={s.id_sector} value={s.id_sector}>
+                                  {s.nombre_sector}
+                                </option>
+                              ))}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={handleGuardarEdicionNucleoInline}
+                              className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-xs font-bold cursor-pointer"
+                            >
+                              Guardar Cambios del Núcleo
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                  <div>
+                    <div>
                     </div>
                   </div>
 
@@ -4542,6 +4909,10 @@ export const CatastrofesView: React.FC = () => {
               </div>
             )}
           </div>
+        )}
+        {/* ======================= TAB 4: NÚCLEOS FAMILIARES ======================= */}
+        {activeTab === 'nucleos' && (
+          <GestionNucleosFamiliaresSAD />
         )}
       </main>
     </div>

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { sacService } from '../services/sacService';
 import { NavbarSAC } from '../components/layout/NavbarSAC';
+import { GestionNucleosFamiliaresSAD } from '../components/nucleos/GestionNucleosFamiliaresSAD';
 import {
   ShieldAlert,
   Calendar,
@@ -34,7 +35,7 @@ export const AdminView: React.FC = () => {
   const navigate = useNavigate();
 
   // Active Admin Sub-Tab: 'eventos' | 'usuarios' | 'dashboard'
-  const [activeAdminTab, setActiveAdminTab] = useState<'eventos' | 'usuarios' | 'dashboard'>('eventos');
+  const [activeAdminTab, setActiveAdminTab] = useState<'eventos' | 'usuarios' | 'nucleos' | 'dashboard'>('eventos');
 
   // Loading and Toasts
   const [loading, setLoading] = useState(false);
@@ -505,6 +506,18 @@ export const AdminView: React.FC = () => {
               <BarChart3 className="h-3.5 w-3.5" />
               <span>Supervisión</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('nucleos')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeAdminTab === 'nucleos'
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Users className="h-3.5 w-3.5" />
+              <span>Núcleos Familiares (SIGA)</span>
+            </button>
           </div>
         </div>
       </div>
@@ -935,6 +948,11 @@ export const AdminView: React.FC = () => {
                 </div>
               </div>
             )}
+          </div>
+        )}
+        {activeAdminTab === 'nucleos' && (
+          <div className="py-2">
+            <GestionNucleosFamiliaresSAD />
           </div>
         )}
       </main>
