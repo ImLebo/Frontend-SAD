@@ -73,17 +73,22 @@ export const NavbarSAC: React.FC = () => {
 
         {/* Compact User Info & Actions */}
         <div className="flex items-center space-x-2.5">
-          {/* Botón Acceso Directo a SIGA */}
+          {/* Acceso Institucional a SIGA */}
           <a
             href={import.meta.env.VITE_SIGA_URL || 'https://siga.gobiernodeanserma.com'}
             target="_blank"
             rel="noopener noreferrer"
-            title="Abrir aplicativo SIGA (Sistema Integrado de Gestión de Ayudas)"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition cursor-pointer shadow-xs"
+            title="Abrir plataforma SIGA (Sistema Integrado de Gestión de Ayudas)"
+            className="group flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold bg-emerald-500/10 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20 hover:border-emerald-400/50 transition cursor-pointer shadow-xs"
           >
-            <ExternalLink className="h-3.5 w-3.5" />
-            <span className="hidden sm:inline">Ingreso al SIGA</span>
-            <span className="sm:hidden">SIGA</span>
+            <span className="relative flex h-2 w-2">
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
+            </span>
+            <span className="font-semibold text-emerald-200">Portal SIGA</span>
+            <span className="hidden sm:inline-block rounded bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wider text-emerald-300">
+              Ayudas Sociales
+            </span>
+            <ExternalLink className="h-3.5 w-3.5 text-emerald-400 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
           </a>
 
           {/* Admin Switch Button */}
