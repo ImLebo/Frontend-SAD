@@ -40,8 +40,17 @@ export interface CiudadanoData {
 }
 
 export interface EvaluacionDanoData {
-  nivel_afectacion_vivienda: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno';
-  nivel_afectacion_techo: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno';
+  tipo_inmueble?: string;
+  nivel_afectacion_vivienda: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' | string;
+  nivel_afectacion_techo: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' | string;
+  nivel_afectacion_paredes?: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' | string;
+  nivel_afectacion_pisos?: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' | string;
+  otros_danos_descripcion?: string;
+  estimacion_perdidas_pesos?: number;
+  propietario_nombre?: string;
+  propietario_documento?: string;
+  propietario_telefono?: string;
+  es_propietario_solicitante?: boolean;
   requiere_evacuacion: boolean;
   visita_campo_realizada: boolean;
   censo_oficial_realizado: boolean;

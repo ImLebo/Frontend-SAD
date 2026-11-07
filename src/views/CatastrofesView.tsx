@@ -332,6 +332,23 @@ export const CatastrofesView: React.FC = () => {
   const [observacionEstructura, setObservacionEstructura] = useState('');
   const [observacionAfectacion, setObservacionAfectacion] = useState('');
 
+  // Nuevos campos de Inmueble, Daños Paredes/Pisos y Estimación Económica (Cliente @FABI0L)
+  const [subtipoEmergencia, setSubtipoEmergencia] = useState<'SOCIAL_E_INMUEBLE' | 'SOCIAL' | 'INMUEBLE'>('SOCIAL_E_INMUEBLE');
+  const [tipoInmueble, setTipoInmueble] = useState<string>('Casa');
+  const [paredesDamageLevel, setParedesDamageLevel] = useState<'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno'>('Ninguno');
+  const [pisosDamageLevel, setPisosDamageLevel] = useState<'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno'>('Ninguno');
+  const [otrosDanosDescripcion, setOtrosDanosDescripcion] = useState('');
+  const [estimacionPerdidasPesos, setEstimacionPerdidasPesos] = useState<string>('0');
+  const [propietarioNombre, setPropietarioNombre] = useState('');
+  const [propietarioDocumento, setPropietarioDocumento] = useState('');
+  const [propietarioTelefono, setPropietarioTelefono] = useState('');
+  const [esPropietarioSolicitante, setEsPropietarioSolicitante] = useState<boolean>(true);
+  const [costoEstimadoAyuda, setCostoEstimadoAyuda] = useState<string>('0');
+  const [documentoReceptor, setDocumentoReceptor] = useState('');
+  const [nombreReceptor, setNombreReceptor] = useState('');
+  const [isParedesPisosOpen, setIsParedesPisosOpen] = useState(true);
+  const [isInmuebleDatosOpen, setIsInmuebleDatosOpen] = useState(true);
+
   // Checklist & Item Quantities
   const [selectedSubtipos, setSelectedSubtipos] = useState<string[]>([]);
   const [cantidadesSubtipos, setCantidadesSubtipos] = useState<Record<string, number>>({});
@@ -718,16 +735,22 @@ export const CatastrofesView: React.FC = () => {
   const handleMultiplePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      Array.from(files).forEach((file) => {
+      const remainingSlots = Math.max(0, 8 - fotosEntrega.length);
+      if (remainingSlots <= 0) {
+        showToast('Ya has alcanzado el límite máximo de 8 fotos.', 'warning');
+        return;
+      }
+      const filesToProcess = Array.from(files).slice(0, remainingSlots);
+      filesToProcess.forEach((file) => {
         const reader = new FileReader();
         reader.onloadend = () => {
           if (reader.result) {
-            setFotosEntrega((prev) => [...prev, reader.result as string]);
+            setFotosEntrega((prev) => (prev.length < 8 ? [...prev, reader.result as string] : prev));
           }
         };
         reader.readAsDataURL(file);
       });
-      showToast(`${files.length} imagen(es) adjuntada(s)`, 'success');
+      showToast(`${filesToProcess.length} imagen(es) adjuntada(s) (Máximo 8)`, 'success');
     }
   };
 
@@ -1056,6 +1079,19 @@ export const CatastrofesView: React.FC = () => {
     setTipoDestinatario('NUCLEO_FAMILIAR');
     setNombreComunidad('');
     setIdNucleoVinculado(null);
+    setSubtipoEmergencia('SOCIAL_E_INMUEBLE');
+    setTipoInmueble('Casa');
+    setParedesDamageLevel('Ninguno');
+    setPisosDamageLevel('Ninguno');
+    setOtrosDanosDescripcion('');
+    setEstimacionPerdidasPesos('0');
+    setPropietarioNombre('');
+    setPropietarioDocumento('');
+    setPropietarioTelefono('');
+    setEsPropietarioSolicitante(true);
+    setCostoEstimadoAyuda('0');
+    setDocumentoReceptor('');
+    setNombreReceptor('');
   };
 
   // Cargar entrega para edición completa
@@ -1120,6 +1156,15 @@ export const CatastrofesView: React.FC = () => {
         setAlbergue(!!ed.requiere_albergue);
         setRedApoyo(!!ed.cuenta_red_apoyo);
         setObservacionAfectacion(ed.observaciones_dano || '');
+        if (ed.tipo_inmueble) setTipoInmueble(ed.tipo_inmueble);
+        if (ed.nivel_afectacion_paredes) setParedesDamageLevel(ed.nivel_afectacion_paredes as any);
+        if (ed.nivel_afectacion_pisos) setPisosDamageLevel(ed.nivel_afectacion_pisos as any);
+        if (ed.otros_danos_descripcion) setOtrosDanosDescripcion(ed.otros_danos_descripcion);
+        if (ed.estimacion_perdidas_pesos !== undefined) setEstimacionPerdidasPesos(String(ed.estimacion_perdidas_pesos));
+        if (ed.propietario_nombre) setPropietarioNombre(ed.propietario_nombre);
+        if (ed.propietario_documento) setPropietarioDocumento(ed.propietario_documento);
+        if (ed.propietario_telefono) setPropietarioTelefono(ed.propietario_telefono);
+        if (ed.es_propietario_solicitante !== undefined) setEsPropietarioSolicitante(ed.es_propietario_solicitante);
       }
 
       // RUFE
@@ -1274,8 +1319,17 @@ export const CatastrofesView: React.FC = () => {
             observaciones_sector: observacionSector.trim() || undefined,
           },
           evaluacion_dano: {
+            tipo_inmueble: tipoInmueble,
             nivel_afectacion_vivienda: afectacionNivel,
             nivel_afectacion_techo: techoDamageLevel,
+            nivel_afectacion_paredes: paredesDamageLevel,
+            nivel_afectacion_pisos: pisosDamageLevel,
+            otros_danos_descripcion: otrosDanosDescripcion.trim() || undefined,
+            estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
+            propietario_nombre: esPropietarioSolicitante ? `${nombres.trim()} ${apellidos.trim()}` : (propietarioNombre.trim() || undefined),
+            propietario_documento: esPropietarioSolicitante ? documento.trim() : (propietarioDocumento.trim() || undefined),
+            propietario_telefono: esPropietarioSolicitante ? (telefono.trim() || undefined) : (propietarioTelefono.trim() || undefined),
+            es_propietario_solicitante: esPropietarioSolicitante,
             requiere_evacuacion: evacuar,
             visita_campo_realizada: visita,
             censo_oficial_realizado: censo,
@@ -1284,6 +1338,9 @@ export const CatastrofesView: React.FC = () => {
             afectacion_infraestructura_productiva: false,
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
           },
+          subtipo_emergencia: subtipoEmergencia,
+          estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
+          fotos_inmueble: fotosEntrega.slice(0, 8),
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -1367,8 +1424,17 @@ export const CatastrofesView: React.FC = () => {
             observaciones_sector: observacionSector.trim() || undefined,
           },
           evaluacion_dano: {
+            tipo_inmueble: tipoInmueble,
             nivel_afectacion_vivienda: afectacionNivel,
             nivel_afectacion_techo: techoDamageLevel,
+            nivel_afectacion_paredes: paredesDamageLevel,
+            nivel_afectacion_pisos: pisosDamageLevel,
+            otros_danos_descripcion: otrosDanosDescripcion.trim() || undefined,
+            estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
+            propietario_nombre: esPropietarioSolicitante ? `${nombres.trim()} ${apellidos.trim()}` : (propietarioNombre.trim() || undefined),
+            propietario_documento: esPropietarioSolicitante ? documento.trim() : (propietarioDocumento.trim() || undefined),
+            propietario_telefono: esPropietarioSolicitante ? (telefono.trim() || undefined) : (propietarioTelefono.trim() || undefined),
+            es_propietario_solicitante: esPropietarioSolicitante,
             requiere_evacuacion: evacuar,
             visita_campo_realizada: visita,
             censo_oficial_realizado: censo,
@@ -1377,6 +1443,9 @@ export const CatastrofesView: React.FC = () => {
             afectacion_infraestructura_productiva: false,
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
           },
+          subtipo_emergencia: subtipoEmergencia,
+          estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
+          fotos_inmueble: fotosEntrega.slice(0, 8),
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -1449,6 +1518,10 @@ export const CatastrofesView: React.FC = () => {
           items_entregados: mappedItems.length > 0 ? mappedItems : undefined,
           observaciones: observaciones.trim() || undefined,
           fotos_evidencia: fotosEntrega,
+          fotos_entrega: fotosEntrega,
+          costo_estimado_ayuda: parseFloat(costoEstimadoAyuda) || 0,
+          documento_receptor: documentoReceptor.trim() || documento.trim() || undefined,
+          nombre_receptor: nombreReceptor.trim() || `${nombres.trim()} ${apellidos.trim()}` || undefined,
         };
         const res = await sacService.registrarEntregaInmediata(payload);
         showToast(`¡Entrega ${res.codigo_entrega} registrada exitosamente!`, 'success');
@@ -1474,6 +1547,10 @@ export const CatastrofesView: React.FC = () => {
           items_entregados: mappedItems.length > 0 ? mappedItems : undefined,
           observaciones: observaciones.trim() || undefined,
           fotos_evidencia: fotosEntrega,
+          fotos_entrega: fotosEntrega,
+          costo_estimado_ayuda: parseFloat(costoEstimadoAyuda) || 0,
+          documento_receptor: documentoReceptor.trim() || undefined,
+          nombre_receptor: nombreReceptor.trim() || undefined,
         };
         const res = await sacService.registrarEntregaExistente(payload);
         showToast(`¡Entrega ${res.codigo_entrega} completada para ${selectedRequest.codigo_solicitud || selectedRequest.id_solicitud}!`, 'success');
@@ -3354,6 +3431,234 @@ export const CatastrofesView: React.FC = () => {
                       )}
                     </div>
 
+                    {/* Panel Colapsable 3: Afectación en Paredes, Pisos y Otros Daños */}
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsParedesPisosOpen(!isParedesPisosOpen)}
+                        className="w-full px-4 py-3 bg-indigo-100/60 hover:bg-indigo-100 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-indigo-600 text-white rounded-lg font-black text-xs">
+                            🧱
+                          </span>
+                          <div className="text-left">
+                            <h4 className="text-xs font-extrabold text-indigo-950 uppercase flex items-center gap-2">
+                              <span>3. Daños en Paredes, Pisos y Otros Daños</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
+                                Paredes: {paredesDamageLevel} | Pisos: {pisosDamageLevel}
+                              </span>
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-indigo-900 text-xs font-bold">
+                          <span>{isParedesPisosOpen ? 'Ocultar' : 'Desplegar'}</span>
+                          {isParedesPisosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {isParedesPisosOpen && (
+                        <div className="p-4 space-y-3 bg-white border-t border-indigo-200/60 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Paredes */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Daño en Paredes / Muros:
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(['Colapso Total', 'Grave', 'Leve', 'Ninguno'] as const).map((lvl) => (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setParedesDamageLevel(lvl)}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                      paredesDamageLevel === lvl
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {lvl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Pisos */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Daño en Pisos / Cimentación:
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(['Colapso Total', 'Grave', 'Leve', 'Ninguno'] as const).map((lvl) => (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setPisosDamageLevel(lvl)}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                      pisosDamageLevel === lvl
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {lvl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Otros Daños */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">
+                              Descripción de Otros Daños del Inmueble (Opcional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ej: Afectación en redes hidrosanitarias, grietas perimetrales, ventanas colapsadas..."
+                              value={otrosDanosDescripcion}
+                              onChange={(e) => setOtrosDanosDescripcion(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Panel Colapsable 4: Inmueble, Propietario y Estimación de Pérdidas ($ COP) */}
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsInmuebleDatosOpen(!isInmuebleDatosOpen)}
+                        className="w-full px-4 py-3 bg-emerald-100/60 hover:bg-emerald-100 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-emerald-600 text-white rounded-lg font-black text-xs">
+                            🏡
+                          </span>
+                          <div className="text-left">
+                            <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2">
+                              <span>4. Caracterización del Inmueble, Propietario y Estimación de Pérdidas</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                                {tipoInmueble} • $ {Number(estimacionPerdidasPesos || 0).toLocaleString()} COP
+                              </span>
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-emerald-900 text-xs font-bold">
+                          <span>{isInmuebleDatosOpen ? 'Ocultar' : 'Desplegar'}</span>
+                          {isInmuebleDatosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {isInmuebleDatosOpen && (
+                        <div className="p-4 space-y-3 bg-white border-t border-emerald-200/60 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* Tipo de Solicitud de Emergencia */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Enfoque de la Solicitud:
+                              </label>
+                              <select
+                                value={subtipoEmergencia}
+                                onChange={(e) => setSubtipoEmergencia(e.target.value as any)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              >
+                                <option value="SOCIAL_E_INMUEBLE">Social y de Inmueble (Integral)</option>
+                                <option value="INMUEBLE">Solo Inmueble / Daño Material</option>
+                                <option value="SOCIAL">Solo Asistencia Social / Familiar</option>
+                              </select>
+                            </div>
+
+                            {/* Tipo de Inmueble */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Tipo de Inmueble / Bien:
+                              </label>
+                              <select
+                                value={tipoInmueble}
+                                onChange={(e) => setTipoInmueble(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              >
+                                <option value="Casa">Casa</option>
+                                <option value="Apartamento">Apartamento</option>
+                                <option value="Local comercial">Local comercial</option>
+                                <option value="Lote">Lote</option>
+                                <option value="Carretera">Carretera / Vía</option>
+                                <option value="Institución educativa">Institución educativa</option>
+                                <option value="Institución religiosa">Institución religiosa</option>
+                                <option value="Finca">Finca / Predio Rural</option>
+                                <option value="Otro">Otro Inmueble</option>
+                              </select>
+                            </div>
+
+                            {/* Estimación de Pérdidas Económicas */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Estimación de Pérdidas ($ COP):
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="10000"
+                                placeholder="Ej: 5000000"
+                                value={estimacionPerdidasPesos}
+                                onChange={(e) => setEstimacionPerdidasPesos(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Datos del Propietario */}
+                          <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={esPropietarioSolicitante}
+                                onChange={(e) => setEsPropietarioSolicitante(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <span>El solicitante registrado ({nombres || 'Ciudadano'}) es el propietario del inmueble</span>
+                            </label>
+
+                            {!esPropietarioSolicitante && (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 animate-in fade-in duration-150">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Cédula del Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Documento"
+                                    value={propietarioDocumento}
+                                    onChange={(e) => setPropietarioDocumento(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Nombre Completo Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Nombres y Apellidos"
+                                    value={propietarioNombre}
+                                    onChange={(e) => setPropietarioNombre(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Teléfono Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Teléfono"
+                                    value={propietarioTelefono}
+                                    onChange={(e) => setPropietarioTelefono(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
                     {/* Panel Colapsable 2: Afectación en Estructura */}
                     <div className="rounded-2xl border border-rose-200 bg-rose-50/40 overflow-hidden shadow-2xs">
                       <button
@@ -3466,6 +3771,234 @@ export const CatastrofesView: React.FC = () => {
                               onChange={(e) => setObservacionEstructura(e.target.value)}
                               className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none"
                             />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Panel Colapsable 3: Afectación en Paredes, Pisos y Otros Daños */}
+                    <div className="rounded-2xl border border-indigo-200 bg-indigo-50/40 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsParedesPisosOpen(!isParedesPisosOpen)}
+                        className="w-full px-4 py-3 bg-indigo-100/60 hover:bg-indigo-100 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-indigo-600 text-white rounded-lg font-black text-xs">
+                            🧱
+                          </span>
+                          <div className="text-left">
+                            <h4 className="text-xs font-extrabold text-indigo-950 uppercase flex items-center gap-2">
+                              <span>3. Daños en Paredes, Pisos y Otros Daños</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-indigo-200 text-indigo-900">
+                                Paredes: {paredesDamageLevel} | Pisos: {pisosDamageLevel}
+                              </span>
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-indigo-900 text-xs font-bold">
+                          <span>{isParedesPisosOpen ? 'Ocultar' : 'Desplegar'}</span>
+                          {isParedesPisosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {isParedesPisosOpen && (
+                        <div className="p-4 space-y-3 bg-white border-t border-indigo-200/60 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            {/* Paredes */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Daño en Paredes / Muros:
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(['Colapso Total', 'Grave', 'Leve', 'Ninguno'] as const).map((lvl) => (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setParedesDamageLevel(lvl)}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                      paredesDamageLevel === lvl
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {lvl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+
+                            {/* Pisos */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Daño en Pisos / Cimentación:
+                              </label>
+                              <div className="flex flex-wrap gap-1.5">
+                                {(['Colapso Total', 'Grave', 'Leve', 'Ninguno'] as const).map((lvl) => (
+                                  <button
+                                    key={lvl}
+                                    type="button"
+                                    onClick={() => setPisosDamageLevel(lvl)}
+                                    className={`px-2.5 py-1 rounded-xl text-xs font-bold border transition-all cursor-pointer ${
+                                      pisosDamageLevel === lvl
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                                        : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                                    }`}
+                                  >
+                                    {lvl}
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* Otros Daños */}
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">
+                              Descripción de Otros Daños del Inmueble (Opcional)
+                            </label>
+                            <input
+                              type="text"
+                              placeholder="Ej: Afectación en redes hidrosanitarias, grietas perimetrales, ventanas colapsadas..."
+                              value={otrosDanosDescripcion}
+                              onChange={(e) => setOtrosDanosDescripcion(e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Panel Colapsable 4: Inmueble, Propietario y Estimación de Pérdidas ($ COP) */}
+                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 overflow-hidden shadow-2xs">
+                      <button
+                        type="button"
+                        onClick={() => setIsInmuebleDatosOpen(!isInmuebleDatosOpen)}
+                        className="w-full px-4 py-3 bg-emerald-100/60 hover:bg-emerald-100 flex items-center justify-between transition-colors cursor-pointer"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="p-1.5 bg-emerald-600 text-white rounded-lg font-black text-xs">
+                            🏡
+                          </span>
+                          <div className="text-left">
+                            <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2">
+                              <span>4. Caracterización del Inmueble, Propietario y Estimación de Pérdidas</span>
+                              <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
+                                {tipoInmueble} • $ {Number(estimacionPerdidasPesos || 0).toLocaleString()} COP
+                              </span>
+                            </h4>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 text-emerald-900 text-xs font-bold">
+                          <span>{isInmuebleDatosOpen ? 'Ocultar' : 'Desplegar'}</span>
+                          {isInmuebleDatosOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        </div>
+                      </button>
+
+                      {isInmuebleDatosOpen && (
+                        <div className="p-4 space-y-3 bg-white border-t border-emerald-200/60 animate-in fade-in slide-in-from-top-2 duration-150">
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                            {/* Tipo de Solicitud de Emergencia */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Enfoque de la Solicitud:
+                              </label>
+                              <select
+                                value={subtipoEmergencia}
+                                onChange={(e) => setSubtipoEmergencia(e.target.value as any)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              >
+                                <option value="SOCIAL_E_INMUEBLE">Social y de Inmueble (Integral)</option>
+                                <option value="INMUEBLE">Solo Inmueble / Daño Material</option>
+                                <option value="SOCIAL">Solo Asistencia Social / Familiar</option>
+                              </select>
+                            </div>
+
+                            {/* Tipo de Inmueble */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Tipo de Inmueble / Bien:
+                              </label>
+                              <select
+                                value={tipoInmueble}
+                                onChange={(e) => setTipoInmueble(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              >
+                                <option value="Casa">Casa</option>
+                                <option value="Apartamento">Apartamento</option>
+                                <option value="Local comercial">Local comercial</option>
+                                <option value="Lote">Lote</option>
+                                <option value="Carretera">Carretera / Vía</option>
+                                <option value="Institución educativa">Institución educativa</option>
+                                <option value="Institución religiosa">Institución religiosa</option>
+                                <option value="Finca">Finca / Predio Rural</option>
+                                <option value="Otro">Otro Inmueble</option>
+                              </select>
+                            </div>
+
+                            {/* Estimación de Pérdidas Económicas */}
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Estimación de Pérdidas ($ COP):
+                              </label>
+                              <input
+                                type="number"
+                                min="0"
+                                step="10000"
+                                placeholder="Ej: 5000000"
+                                value={estimacionPerdidasPesos}
+                                onChange={(e) => setEstimacionPerdidasPesos(e.target.value)}
+                                className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Datos del Propietario */}
+                          <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                            <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                              <input
+                                type="checkbox"
+                                checked={esPropietarioSolicitante}
+                                onChange={(e) => setEsPropietarioSolicitante(e.target.checked)}
+                                className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                              />
+                              <span>El solicitante registrado ({nombres || 'Ciudadano'}) es el propietario del inmueble</span>
+                            </label>
+
+                            {!esPropietarioSolicitante && (
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1 animate-in fade-in duration-150">
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Cédula del Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Documento"
+                                    value={propietarioDocumento}
+                                    onChange={(e) => setPropietarioDocumento(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Nombre Completo Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Nombres y Apellidos"
+                                    value={propietarioNombre}
+                                    onChange={(e) => setPropietarioNombre(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                                <div>
+                                  <label className="block text-[10px] font-bold text-slate-600 uppercase">Teléfono Propietario</label>
+                                  <input
+                                    type="text"
+                                    placeholder="Teléfono"
+                                    value={propietarioTelefono}
+                                    onChange={(e) => setPropietarioTelefono(e.target.value)}
+                                    className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
+                                  />
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
                       )}
@@ -3632,32 +4165,77 @@ export const CatastrofesView: React.FC = () => {
                 />
               </div>
 
-              {/* Cantidad Total cuando es Entrega Directa o Existente */}
+              {/* Cantidad Total, Costo Estimado y Receptor cuando es Entrega Directa o Existente */}
               {(registroModo === 'ENTREGA_DIRECTA' || registroModo === 'ENTREGA_EXISTENTE') && (
-                <div className="pt-3 border-t border-slate-200">
-                  <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                    Cantidad Total de Kits / Materiales Contabilizados
-                  </label>
-                  <input
-                    type="number"
-                    min={1}
-                    value={cantidadAyuda}
-                    onChange={(e) => setCantidadAyuda(Number(e.target.value))}
-                    className="w-full sm:w-1/2 px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
-                  />
+                <div className="pt-3 border-t border-slate-200 space-y-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Cantidad Total de Kits / Materiales
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        value={cantidadAyuda}
+                        onChange={(e) => setCantidadAyuda(Number(e.target.value))}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Costo Estimado de la Ayuda ($ COP)
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        step="5000"
+                        placeholder="Ej: 250000"
+                        value={costoEstimadoAyuda}
+                        onChange={(e) => setCostoEstimadoAyuda(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                        Doc. Integrante Receptor
+                      </label>
+                      <input
+                        type="text"
+                        placeholder="Cédula de quien recibe"
+                        value={documentoReceptor}
+                        onChange={(e) => setDocumentoReceptor(e.target.value)}
+                        className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                      Nombre Completo del Integrante del Núcleo que Recibe
+                    </label>
+                    <input
+                      type="text"
+                      placeholder="Nombre del familiar que recibe la entrega física..."
+                      value={nombreReceptor}
+                      onChange={(e) => setNombreReceptor(e.target.value)}
+                      className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
+                    />
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      Cualquier miembro activo del núcleo familiar o el solicitante puede recibir las ayudas entregadas.
+                    </p>
+                  </div>
                 </div>
               )}
 
-              {/* Evidencias Fotográficas Múltiples (Disponible para Solicitudes y Entregas) */}
+              {/* Evidencias Fotográficas Múltiples (Disponible para Solicitudes y Entregas - Hasta 8 Fotos) */}
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <label className="block text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                       <Camera className="h-4 w-4 text-rose-600" />
-                      Evidencias Fotográficas de la Solicitud / Entrega (Múltiples)
+                      Evidencias Fotográficas de la Solicitud / Entrega (Hasta 8 Fotos)
                     </label>
                     <p className="text-[11px] text-slate-500">
-                      Adjunte fotografías de los daños en vivienda, bien afectado o entrega de insumos realizada.
+                      Adjunte fotografías de los daños en paredes, pisos, techo, bien afectado o evidencia de entrega realizada.
                     </p>
                   </div>
                   <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-xs font-extrabold text-rose-800 cursor-pointer shadow-2xs transition-colors">
