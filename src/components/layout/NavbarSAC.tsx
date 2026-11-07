@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../auth/AuthContext';
-import { LogOut, Settings, LayoutGrid } from 'lucide-react';
+import { LogOut, Settings, LayoutGrid, ExternalLink } from 'lucide-react';
 import { SadLogo } from '../common/SadLogo';
 
 export const NavbarSAC: React.FC = () => {
@@ -73,6 +73,19 @@ export const NavbarSAC: React.FC = () => {
 
         {/* Compact User Info & Actions */}
         <div className="flex items-center space-x-2.5">
+          {/* Botón Acceso Directo a SIGA */}
+          <a
+            href={import.meta.env.VITE_SIGA_URL || 'https://siga.gobiernodeanserma.com'}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Abrir aplicativo SIGA (Sistema Integrado de Gestión de Ayudas)"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-emerald-600/20 text-emerald-300 border border-emerald-500/40 hover:bg-emerald-600/30 transition cursor-pointer shadow-xs"
+          >
+            <ExternalLink className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Ingreso al SIGA</span>
+            <span className="sm:hidden">SIGA</span>
+          </a>
+
           {/* Admin Switch Button */}
           {isAdmin && (
             <button
