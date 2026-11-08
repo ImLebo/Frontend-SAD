@@ -731,13 +731,13 @@ export const CatastrofesView: React.FC = () => {
     setCantidadesSubtipos((prev) => ({ ...prev, [nombre]: valid }));
   };
 
-  // Multiple Photo Uploads
+  // Multiple Photo Uploads (Máximo 6 fotos en Solicitudes y Entregas)
   const handleMultiplePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
-      const remainingSlots = Math.max(0, 8 - fotosEntrega.length);
+      const remainingSlots = Math.max(0, 6 - fotosEntrega.length);
       if (remainingSlots <= 0) {
-        showToast('Ya has alcanzado el límite máximo de 8 fotos.', 'warning');
+        showToast('Ya has alcanzado el límite máximo de 6 fotos.', 'warning');
         return;
       }
       const filesToProcess = Array.from(files).slice(0, remainingSlots);
@@ -745,13 +745,14 @@ export const CatastrofesView: React.FC = () => {
         const reader = new FileReader();
         reader.onloadend = () => {
           if (reader.result) {
-            setFotosEntrega((prev) => (prev.length < 8 ? [...prev, reader.result as string] : prev));
+            setFotosEntrega((prev) => (prev.length < 6 ? [...prev, reader.result as string] : prev));
           }
         };
         reader.readAsDataURL(file);
       });
-      showToast(`${filesToProcess.length} imagen(es) adjuntada(s) (Máximo 8)`, 'success');
+      showToast(`${filesToProcess.length} imagen(es) adjuntada(s) (Máximo 6)`, 'success');
     }
+    e.target.value = '';
   };
 
   const removePhoto = (index: number) => {
@@ -1114,6 +1115,7 @@ export const CatastrofesView: React.FC = () => {
     }
     setCantidadAyuda(entrega.cantidad || 1);
     setObservaciones(entrega.observaciones || '');
+    setFotosEntrega(Array.isArray(entrega.fotos) ? entrega.fotos.slice(0, 6) : []);
     setRegistroModo('ENTREGA_EXISTENTE');
     setActiveTab('formulario');
     showToast(`Modo edición activado para Entrega ${entrega.codigo_entrega}`, 'warning');
@@ -1229,9 +1231,15 @@ export const CatastrofesView: React.FC = () => {
         setCantidadesSubtipos(quantities);
       }
 
-      // Fotos
+      // Fotos (Solo fotos de la solicitud, hasta 6)
       if (detail.fotos && detail.fotos.length > 0) {
-        setFotosEntrega(detail.fotos.map((f) => f.url));
+        const fotosSol = detail.fotos
+          .filter((f) => !f.id_entrega)
+          .map((f) => f.url)
+          .slice(0, 6);
+        setFotosEntrega(fotosSol);
+      } else {
+        setFotosEntrega([]);
       }
 
       setEditingSolicitudId(detail.id_solicitud);
@@ -1340,7 +1348,7 @@ export const CatastrofesView: React.FC = () => {
           },
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
-          fotos_inmueble: fotosEntrega.slice(0, 8),
+          fotos_inmueble: [],
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -1381,7 +1389,7 @@ export const CatastrofesView: React.FC = () => {
             })),
           },
           items_solicitados: mappedItems.length > 0 ? mappedItems : [{ id_item: itemsAyuda[0]?.id_item || 1, cantidad: 1 }],
-          fotos_evidencia: fotosEntrega,
+          fotos_evidencia: fotosEntrega.slice(0, 6),
         };
 
         const res = await sacService.actualizarSolicitud(editingSolicitudId, payload);
@@ -1445,7 +1453,7 @@ export const CatastrofesView: React.FC = () => {
           },
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
-          fotos_inmueble: fotosEntrega.slice(0, 8),
+          fotos_inmueble: [],
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -1486,7 +1494,7 @@ export const CatastrofesView: React.FC = () => {
             })),
           },
           items_solicitados: mappedItems.length > 0 ? mappedItems : [{ id_item: itemsAyuda[0]?.id_item || 1, cantidad: 1 }],
-          fotos_evidencia: fotosEntrega,
+          fotos_evidencia: fotosEntrega.slice(0, 6),
         };
 
         const res = await sacService.crearCenso(payload);
@@ -4226,25 +4234,36 @@ export const CatastrofesView: React.FC = () => {
                 </div>
               )}
 
-              {/* Evidencias Fotográficas Múltiples (Disponible para Solicitudes y Entregas - Hasta 8 Fotos) */}
+              {/* Evidencias Fotográficas Múltiples (Disponible para Solicitudes y Entregas - Hasta 6 Fotos) */}
               <div className="pt-4 border-t border-slate-200 space-y-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div>
                     <label className="block text-xs font-black text-slate-800 uppercase tracking-wide flex items-center gap-1.5">
                       <Camera className="h-4 w-4 text-rose-600" />
-                      Evidencias Fotográficas de la Solicitud / Entrega (Hasta 8 Fotos)
+                      {registroModo === 'SOLICITUD_SOLO'
+                        ? 'Evidencias Fotográficas de la Solicitud (Hasta 6 Fotos)'
+                        : 'Evidencias Fotográficas de la Entrega de Ayuda (Hasta 6 Fotos)'}
                     </label>
                     <p className="text-[11px] text-slate-500">
-                      Adjunte fotografías de los daños en paredes, pisos, techo, bien afectado o evidencia de entrega realizada.
+                      {registroModo === 'SOLICITUD_SOLO'
+                        ? 'Adjunte hasta 6 fotografías de soporte de la solicitud, afectación en vivienda, techo, paredes o pisos.'
+                        : 'Adjunte hasta 6 fotografías como evidencia de la entrega física de ayudas al beneficiario o núcleo familiar.'}
                     </p>
                   </div>
-                  <label className="flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border border-rose-300 bg-rose-50 hover:bg-rose-100 text-xs font-extrabold text-rose-800 cursor-pointer shadow-2xs transition-colors">
+                  <label
+                    className={`flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-extrabold shadow-2xs transition-colors ${
+                      fotosEntrega.length >= 6
+                        ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                        : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-800 cursor-pointer'
+                    }`}
+                  >
                     <Camera className="h-4 w-4 text-rose-600" />
-                    <span>+ Adjuntar / Tomar Fotos</span>
+                    <span>+ Adjuntar / Tomar Fotos ({fotosEntrega.length}/6)</span>
                     <input
                       type="file"
                       accept="image/*"
                       multiple
+                      disabled={fotosEntrega.length >= 6}
                       onChange={handleMultiplePhotoUpload}
                       className="hidden"
                     />
@@ -4255,7 +4274,7 @@ export const CatastrofesView: React.FC = () => {
                 {fotosEntrega.length > 0 && (
                   <div className="space-y-2 pt-2">
                     <span className="text-xs font-bold text-slate-700">
-                      {fotosEntrega.length} foto(s) adjuntada(s):
+                      {fotosEntrega.length} / 6 foto(s) adjuntada(s):
                     </span>
                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-3">
                       {fotosEntrega.map((foto, idx) => (

@@ -988,6 +988,30 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             </p>
                           )}
 
+                          {Array.isArray(ent.fotos) && ent.fotos.length > 0 && (
+                            <div className="pt-2 border-t border-slate-100 space-y-2">
+                              <span className="text-[11px] font-bold text-slate-600 flex items-center gap-1.5">
+                                <Camera className="h-3.5 w-3.5 text-emerald-600" />
+                                Evidencia fotográfica de la entrega ({ent.fotos.length} / 6):
+                              </span>
+                              <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                                {ent.fotos.slice(0, 6).map((url, idx) => (
+                                  <div
+                                    key={`${ent.id_entrega}-foto-${idx}`}
+                                    onClick={() => setSelectedPhotoUrl(url)}
+                                    className="aspect-square rounded-xl overflow-hidden border border-slate-200 bg-slate-900 cursor-pointer group relative"
+                                  >
+                                    <img
+                                      src={url}
+                                      alt={`Foto entrega ${idx + 1}`}
+                                      className="w-full h-full object-cover group-hover:scale-105 transition"
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
                           {!isCensoOnly && onEditarEntrega && (
                             <div className="flex justify-end pt-1 border-t border-slate-100">
                               <button

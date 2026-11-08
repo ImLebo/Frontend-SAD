@@ -165,12 +165,17 @@ export interface SolicitudDetailResponse {
     id_item?: number;
     nombre_item?: string;
     cantidad?: number;
+    costo_estimado_ayuda?: number;
+    documento_receptor?: string;
+    nombre_receptor?: string;
+    fotos?: string[];
   }>;
   fotos: Array<{
     id_foto: number;
     url: string;
     tipo: string;
     fecha: string;
+    id_entrega?: number | null;
   }>;
 }
 
