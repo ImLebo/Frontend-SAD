@@ -159,7 +159,10 @@ export const NavbarSAC: React.FC = () => {
 
           <button
             type="button"
-            onClick={logout}
+            onClick={() => {
+              logout();
+              navigate('/login', { replace: true });
+            }}
             className="p-2 text-[#6E6E73] hover:text-[#FF3B30] hover:bg-[#FF3B30]/10 rounded-full transition cursor-pointer"
             title="Cerrar sesión"
           >

@@ -10,8 +10,14 @@ export const LoginView: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const navigate = useNavigate();
+
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -19,9 +25,12 @@ export const LoginView: React.FC = () => {
     setLoading(true);
 
     try {
-      const res = await apiClient.post('/auth/login', { correo, contrasena });
+      const res = await apiClient.post('/auth/login', {
+        correo: correo.trim(),
+        contrasena,
+      });
       login(res.data.access_token, res.data.usuario);
-      navigate('/');
+      navigate('/', { replace: true });
     } catch (err: any) {
       setError(err.response?.data?.detail || 'Error al iniciar sesión. Verifica tus credenciales.');
     } finally {

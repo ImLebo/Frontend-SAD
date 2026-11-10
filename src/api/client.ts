@@ -1,6 +1,18 @@
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
+const getApiBaseUrl = (): string => {
+  // Si estamos en producción (o cualquier dominio/IP remota que no sea localhost)
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return '/api/v1';
+    }
+  }
+  // En desarrollo local (localhost:5173)
+  return import.meta.env.VITE_API_URL || 'http://localhost:8001/api/v1';
+};
+
+const API_BASE_URL = getApiBaseUrl();
 
 export const apiClient = axios.create({
   baseURL: API_BASE_URL,
