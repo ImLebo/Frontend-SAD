@@ -34,6 +34,8 @@ export const sacService = {
     tipo_evento: string;
     codigo_evento?: string;
     descripcion?: string;
+    ambito_territorial?: string;
+    ubicacion_principal?: string;
     departamento?: string;
     municipio?: string;
     fecha_evento?: string;

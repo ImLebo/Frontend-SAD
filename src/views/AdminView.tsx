@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { sacService } from '../services/sacService';
-import { NavbarSAC } from '../components/layout/NavbarSAC';
+import { NavbarSAC, puedeGestionarEventosUsuario } from '../components/layout/NavbarSAC';
 import { GestionNucleosFamiliaresSAD } from '../components/nucleos/GestionNucleosFamiliaresSAD';
 import {
   ShieldAlert,
@@ -46,9 +46,9 @@ export const AdminView: React.FC = () => {
     setTimeout(() => setToast(null), 3500);
   };
 
-  // Redirect if not admin
+  // Redirect if not authorized
   useEffect(() => {
-    if (user && user.nivel < 4) {
+    if (user && !puedeGestionarEventosUsuario(user)) {
       navigate('/');
     }
   }, [user, navigate]);
