@@ -747,6 +747,8 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                                   <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-black ${
                                     fam.parentesco.toLowerCase().includes('jefe')
                                       ? 'bg-indigo-100 text-indigo-800'
+                                      : fam.parentesco.toLowerCase().includes('presidente') || fam.parentesco.toLowerCase().includes('jac')
+                                      ? 'bg-purple-100 text-purple-800'
                                       : fam.parentesco.toLowerCase().includes('cónyuge') || fam.parentesco.toLowerCase().includes('pareja')
                                       ? 'bg-blue-100 text-blue-800'
                                       : fam.parentesco.toLowerCase().includes('hijo')

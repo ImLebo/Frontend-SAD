@@ -51,6 +51,7 @@ import {
   Utensils,
   X,
   Save,
+  AlertCircle,
   ArrowRight,
   ArrowLeft,
   Flame,
@@ -94,6 +95,7 @@ const iconMap: Record<string, any> = {
   dog: Shield,
   'file-text': FileText,
   shield: Shield,
+  truck: Truck,
 };
 
 function EmergencyMapController({ isFullScreen }: { isFullScreen?: boolean }) {
@@ -122,6 +124,17 @@ export const CatastrofesView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'inicio' | 'eventos' | 'formulario' | 'evaluaciones' | 'mapa' | 'historial' | 'nucleos' | 'reportes'>('inicio');
   const [formStepTab, setFormStepTab] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [isConfirmSubmitModalOpen, setIsConfirmSubmitModalOpen] = useState(false);
+  const [isLimpiarModalOpen, setIsLimpiarModalOpen] = useState(false);
+  const [validationModal, setValidationModal] = useState<{
+    isOpen: boolean;
+    title: string;
+    motivos: { campo: string; mensaje: string; tab?: 1 | 2 | 3 | 4 | 5 | 6 }[];
+    errorServidor?: string;
+  }>({
+    isOpen: false,
+    title: '',
+    motivos: [],
+  });
   const [borradorGuardadoHora, setBorradorGuardadoHora] = useState<string | null>(null);
 
   // Permisos para crear/editar eventos (Secretario, Alcalde, Coordinador UNGRD, Administrador, Funcionario)
@@ -820,6 +833,17 @@ export const CatastrofesView: React.FC = () => {
         'Refugio de Emergencia (Carpas / Plásticos Calibre 8)',
       ],
     },
+    ARREGLO_VIA: {
+      label: 'Kit Arreglo de Vía',
+      items: [
+        'Afirmado',
+        'Maquinaria',
+        'Gasolina',
+        'Cemento',
+        'Mano de obra',
+        'Entre otros',
+      ],
+    },
   };
 
   const isPaqueteActivo = (key: string): boolean => {
@@ -1233,6 +1257,181 @@ export const CatastrofesView: React.FC = () => {
     setNombreReceptor('');
   };
 
+  // Funciones específicas para Limpieza de Formulario y Secciones (Modal Limpiar)
+  const limpiarPersona = () => {
+    setDocumento('');
+    setNombres('');
+    setApellidos('');
+    setTelefono('');
+    setDireccion('');
+    setObservacionIdentificacion('');
+    setObservacionSector('');
+    setParentescoCiudadano('Jefe(a) o cabeza del hogar');
+    showToast('Datos de la persona y ciudadano limpiados.', 'success');
+  };
+
+  const limpiarNucleo = () => {
+    setNucleoFamiliar([]);
+    setHayAcompanantes(false);
+    setNumAcompanantes(1);
+    setHayAdultosMayores(false);
+    setNumAdultosMayores(1);
+    setHayNinos(false);
+    setNumNinos(1);
+    setIdNucleoVinculado(null);
+    showToast('Información del núcleo familiar limpiada.', 'success');
+  };
+
+  const limpiarRufe = () => {
+    setCultivoTipo('');
+    setCultivoArea('');
+    setPecuarioEspecie('');
+    setPecuarioCantidad('');
+    setFormaTenenciaRufe('PROPIETARIO');
+    setEstadoBienRufe('HABITABLE');
+    setTipoBienRufe('Vivienda');
+    setVoboCmgrd(false);
+    setResidenciaHabitual(null);
+    setEvacuadoResidencia(null);
+    setCorregimiento('');
+    showToast('Campos de RUFE y agropecuario limpiados.', 'success');
+  };
+
+  const limpiarInmueble = () => {
+    setAfectacionNivel('Ninguno');
+    setTechoDamageLevel('Ninguno');
+    setEstructuraDamageLevel('Ninguno');
+    setParedesDamageLevel('Ninguno');
+    setPisosDamageLevel('Ninguno');
+    setObservacionTecho('');
+    setObservacionEstructura('');
+    setObservacionAfectacion('');
+    setOtrosDanosDescripcion('');
+    setEstimacionPerdidasPesos('0');
+    setEvacuar(false);
+    setVisita(false);
+    setCenso(false);
+    setAlbergue(false);
+    setRedApoyo(false);
+    setTipoInmueble('Vivienda');
+    showToast('Datos de afectación y atención al inmueble limpiados.', 'success');
+  };
+
+  const limpiarAyudas = () => {
+    setSelectedSubtipos([]);
+    setCantidadesSubtipos({});
+    setCostoEstimadoAyuda('0');
+    showToast('Selección de entrega de ayudas e insumos limpiada.', 'success');
+  };
+
+  const limpiarObservaciones = () => {
+    setObservaciones('');
+    setFotosEntrega([]);
+    showToast('Observaciones y evidencias fotográficas limpiadas.', 'success');
+  };
+
+  const limpiarPestanaSeleccionada = () => {
+    switch (formStepTab) {
+      case 1:
+        limpiarPersona();
+        break;
+      case 2:
+        limpiarNucleo();
+        break;
+      case 3:
+        limpiarRufe();
+        break;
+      case 4:
+        limpiarInmueble();
+        break;
+      case 5:
+        limpiarAyudas();
+        break;
+      case 6:
+        limpiarObservaciones();
+        break;
+      default:
+        break;
+    }
+  };
+
+  const limpiarTodoFormulario = () => {
+    resetFormState();
+    showToast('Todo el formulario ha sido limpiado y restablecido.', 'success');
+  };
+
+  // Validación comprensiva con identificación de motivos para el usuario
+  const validarFormulario = (): { valido: boolean; motivos: { campo: string; mensaje: string; tab?: 1 | 2 | 3 | 4 | 5 | 6 }[] } => {
+    const motivos: { campo: string; mensaje: string; tab?: 1 | 2 | 3 | 4 | 5 | 6 }[] = [];
+
+    if (eventos.length === 0 || !selectedEventoId) {
+      motivos.push({
+        campo: 'Evento de Emergencia',
+        mensaje: 'No hay ninguna contingencia o evento activo asignado para registrar datos.',
+        tab: 1,
+      });
+    }
+
+    if (registroModo === 'ENTREGA_EXISTENTE') {
+      if (!selectedRequest) {
+        motivos.push({
+          campo: 'Solicitud Previa',
+          mensaje: 'Debe seleccionar la solicitud previa que desea atender para entregar las ayudas.',
+          tab: 1,
+        });
+      }
+    } else {
+      if (!documento.trim()) {
+        motivos.push({
+          campo: 'Documento del Beneficiario',
+          mensaje: 'Debe ingresar el número de documento de identidad del ciudadano beneficiario.',
+          tab: 1,
+        });
+      }
+      if (!nombres.trim()) {
+        motivos.push({
+          campo: 'Nombres del Beneficiario',
+          mensaje: 'Debe ingresar los nombres del ciudadano beneficiario.',
+          tab: 1,
+        });
+      }
+      if (!apellidos.trim()) {
+        motivos.push({
+          campo: 'Apellidos del Beneficiario',
+          mensaje: 'Debe ingresar los apellidos del ciudadano beneficiario.',
+          tab: 1,
+        });
+      }
+      if (!sectorId || sectorId === 0) {
+        motivos.push({
+          campo: 'Sector / Vereda / Barrio',
+          mensaje: 'Debe seleccionar el barrio o vereda donde ocurrió la afectación.',
+          tab: 1,
+        });
+      }
+    }
+
+    if (registroModo === 'ENTREGA_EXISTENTE' && selectedSubtipos.length === 0 && !cantidadAyuda) {
+      motivos.push({
+        campo: 'Entrega de Ayudas',
+        mensaje: 'Debe seleccionar al menos un ítem o ayuda a entregar en la pestaña 5 (Entrega de ayudas).',
+        tab: 5,
+      });
+    }
+
+    nucleoFamiliar.forEach((miembro, idx) => {
+      if (!miembro.nombres.trim()) {
+        motivos.push({
+          campo: `Núcleo Familiar - Miembro #${idx + 1}`,
+          mensaje: `El integrante #${idx + 1} de la familia no tiene nombre asignado. Complete los nombres o elimine la fila vacía.`,
+          tab: 2,
+        });
+      }
+    });
+
+    return { valido: motivos.length === 0, motivos };
+  };
+
   // Cargar entrega para edición completa
   const handleEditarEntrega = (entrega: any, detail: SolicitudDetailResponse) => {
     setEditingEntregaId(entrega.id_entrega);
@@ -1396,20 +1595,13 @@ export const CatastrofesView: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (eventos.length === 0) {
-      showToast('No tienes ninguna contingencia activa asignada para registrar datos.', 'error');
-      return;
-    }
-
-    if (registroModo !== 'ENTREGA_EXISTENTE') {
-      if (!documento.trim() || !nombres.trim() || !apellidos.trim()) {
-        showToast('Por favor ingrese documento, nombres y apellidos del beneficiario.', 'error');
-        return;
-      }
-    }
-
-    if (registroModo === 'ENTREGA_EXISTENTE' && !selectedRequest) {
-      showToast('Seleccione la solicitud pendiente que desea atender.', 'error');
+    const resValidacion = validarFormulario();
+    if (!resValidacion.valido) {
+      setValidationModal({
+        isOpen: true,
+        title: 'No se puede enviar el formulario',
+        motivos: resValidacion.motivos,
+      });
       return;
     }
 
@@ -1707,7 +1899,30 @@ export const CatastrofesView: React.FC = () => {
       fetchSolicitudes();
       loadDashboard();
     } catch (err: any) {
-      showToast(err.response?.data?.detail || 'Error al procesar el registro.', 'error');
+      let errorServidor = 'Error al procesar el registro en el servidor.';
+      if (err.response?.data) {
+        const d = err.response.data.detail || err.response.data.mensaje || err.response.data.message;
+        if (typeof d === 'string') {
+          errorServidor = d;
+        } else if (Array.isArray(d)) {
+          errorServidor = d.map((it: any) => {
+            const loc = Array.isArray(it.loc) ? it.loc.filter((x: any) => x !== 'body').join(' -> ') : 'Campo';
+            return `• ${loc}: ${it.msg || it.message || JSON.stringify(it)}`;
+          }).join('\n');
+        } else if (typeof d === 'object') {
+          errorServidor = JSON.stringify(d, null, 2);
+        }
+      } else if (err.message) {
+        errorServidor = err.message;
+      }
+
+      showToast('No se pudo enviar el formulario. Revise los motivos.', 'error');
+      setValidationModal({
+        isOpen: true,
+        title: 'Error del servidor al registrar',
+        motivos: [],
+        errorServidor,
+      });
     } finally {
       setSubmitting(false);
     }
@@ -2414,6 +2629,259 @@ export const CatastrofesView: React.FC = () => {
               >
                 {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 <span>Confirmar y Guardar</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Limpiar Formulario con selección de alcance (Apple Design System) */}
+      {isLimpiarModalOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 shadow-[0_25px_60px_rgba(0,0,0,0.22)] border border-[#E5E5EA] space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-rose-50 text-rose-600 flex items-center justify-center shrink-0 border border-rose-100">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1D1D1F]">Limpiar Formulario</h3>
+                  <p className="text-xs text-[#6E6E73]">
+                    ¿Qué sección o datos deseas restablecer?
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsLimpiarModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <p className="text-xs text-slate-600">
+              Selecciona el alcance de la limpieza. Puedes limpiar únicamente la pestaña activa o secciones específicas sin afectar el resto de la información:
+            </p>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
+              {/* Opción 1: Pestaña Seleccionada Actual */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarPestanaSeleccionada();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-2xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-left transition flex items-start gap-2.5 cursor-pointer sm:col-span-2 group"
+              >
+                <div className="p-2 rounded-xl bg-blue-500 text-white shrink-0 group-hover:scale-105 transition">
+                  <SlidersHorizontal className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
+                    <span>Pestaña seleccionada (Pestaña {formStepTab})</span>
+                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-200 text-blue-800 font-extrabold">Recomendado</span>
+                  </div>
+                  <p className="text-[11px] text-blue-700 mt-0.5">
+                    Limpia solo la pestaña activa:{' '}
+                    <strong>
+                      {formStepTab === 1 && 'Datos del Evento y Ciudadano'}
+                      {formStepTab === 2 && 'Núcleo Familiar'}
+                      {formStepTab === 3 && 'RUFE y Agropecuario'}
+                      {formStepTab === 4 && 'Atención y Afectación del Inmueble'}
+                      {formStepTab === 5 && 'Entrega de ayudas'}
+                      {formStepTab === 6 && 'Observaciones y Evidencias'}
+                    </strong>
+                  </p>
+                </div>
+              </button>
+
+              {/* Opción 2: Persona */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarPersona();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+              >
+                <User className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">Persona / Ciudadano</div>
+                  <p className="text-[10px] text-slate-500">Documento, nombres, teléfono y sector</p>
+                </div>
+              </button>
+
+              {/* Opción 3: Núcleo */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarNucleo();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+              >
+                <Users className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">Núcleo Familiar</div>
+                  <p className="text-[10px] text-slate-500">Lista de integrantes y acompañantes</p>
+                </div>
+              </button>
+
+              {/* Opción 4: RUFE */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarRufe();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+              >
+                <FileText className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">RUFE / Agropecuario</div>
+                  <p className="text-[10px] text-slate-500">Cultivos, especies y tenencia</p>
+                </div>
+              </button>
+
+              {/* Opción 5: Atención al Inmueble */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarInmueble();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+              >
+                <Home className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">Atención al Inmueble</div>
+                  <p className="text-[10px] text-slate-500">Daños techo, paredes, evacuación y albergue</p>
+                </div>
+              </button>
+
+              {/* Opción 6: Entrega de ayudas */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarAyudas();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+              >
+                <ListCheck className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-slate-900">Entrega de Ayudas</div>
+                  <p className="text-[10px] text-slate-500">Checklist de kits, ítems y cantidades</p>
+                </div>
+              </button>
+
+              {/* Opción 7: Todo el Formulario */}
+              <button
+                type="button"
+                onClick={() => {
+                  limpiarTodoFormulario();
+                  setIsLimpiarModalOpen(false);
+                }}
+                className="p-3 rounded-xl border border-rose-200 bg-rose-50/40 hover:bg-rose-100 text-left transition flex items-start gap-2 cursor-pointer sm:col-span-2"
+              >
+                <Trash2 className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
+                <div>
+                  <div className="text-xs font-bold text-rose-900">Todo el Formulario (Completo)</div>
+                  <p className="text-[10px] text-rose-700">Restablece todos los campos a su estado inicial en blanco</p>
+                </div>
+              </button>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setIsLimpiarModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Motivos por los cuales no se envía el formulario */}
+      {validationModal.isOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/45 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] max-w-lg w-full p-6 shadow-[0_25px_60px_rgba(0,0,0,0.25)] border border-[#E5E5EA] space-y-4">
+            <div className="flex items-center gap-3 pb-3 border-b border-slate-100">
+              <div className="w-10 h-10 rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0 border border-amber-200">
+                <AlertCircle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="text-base font-bold text-[#1D1D1F]">{validationModal.title}</h3>
+                <p className="text-xs text-[#6E6E73]">
+                  Por favor revise y subsane los siguientes motivos para poder procesar el registro:
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setValidationModal({ isOpen: false, title: '', motivos: [] })}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Lista de Motivos de Validación */}
+            {validationModal.motivos.length > 0 && (
+              <div className="space-y-2.5 max-h-[360px] overflow-y-auto pr-1">
+                {validationModal.motivos.map((motivo, idx) => (
+                  <div
+                    key={idx}
+                    className="p-3 rounded-2xl bg-amber-50/60 border border-amber-200 flex items-start justify-between gap-3 text-xs"
+                  >
+                    <div className="space-y-0.5 min-w-0">
+                      <div className="font-bold text-amber-950 flex items-center gap-1.5">
+                        <span className="w-2 h-2 rounded-full bg-amber-500 shrink-0" />
+                        <span>{motivo.campo}</span>
+                      </div>
+                      <p className="text-amber-800 text-[11px] leading-relaxed">
+                        {motivo.mensaje}
+                      </p>
+                    </div>
+
+                    {motivo.tab && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setFormStepTab(motivo.tab!);
+                          setValidationModal({ isOpen: false, title: '', motivos: [] });
+                        }}
+                        className="px-2.5 py-1.5 rounded-lg bg-amber-200/80 hover:bg-amber-300 text-amber-900 font-bold text-[10px] shrink-0 transition flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>Ir a pestaña {motivo.tab}</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Error específico del servidor */}
+            {validationModal.errorServidor && (
+              <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 text-xs text-rose-900 space-y-1">
+                <span className="font-bold block text-rose-950">Respuesta del Servidor / Backend:</span>
+                <p className="font-mono text-[11px] whitespace-pre-wrap leading-relaxed">
+                  {validationModal.errorServidor}
+                </p>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2 border-t border-slate-100">
+              <button
+                type="button"
+                onClick={() => setValidationModal({ isOpen: false, title: '', motivos: [] })}
+                className="px-5 py-2 rounded-xl bg-[#007AFF] hover:bg-[#0062CC] text-white text-xs font-semibold shadow-xs cursor-pointer"
+              >
+                Entendido, ir a corregir
               </button>
             </div>
           </div>
@@ -3478,6 +3946,15 @@ export const CatastrofesView: React.FC = () => {
             <form
               onSubmit={(e) => {
                 e.preventDefault();
+                const resValidacion = validarFormulario();
+                if (!resValidacion.valido) {
+                  setValidationModal({
+                    isOpen: true,
+                    title: 'No se puede enviar el formulario',
+                    motivos: resValidacion.motivos,
+                  });
+                  return;
+                }
                 setIsConfirmSubmitModalOpen(true);
               }}
               className="space-y-4 animate-in fade-in duration-200"
@@ -3506,7 +3983,7 @@ export const CatastrofesView: React.FC = () => {
                     </div>
                   </div>
 
-                  {/* Right Action Buttons: Cambiar Evento, Guardar Borrador, Registrar Atención */}
+                  {/* Right Action Buttons: Cambiar Evento, Guardar Borrador, Limpiar Formulario, Registrar Solicitud */}
                   <div className="flex items-center gap-2 flex-wrap shrink-0">
                     {eventos.length > 0 && (
                       <div className="flex items-center gap-1.5 bg-[#F5F5F7] border border-[#D2D2D7] rounded-[10px] px-2.5 py-1.5">
@@ -3540,6 +4017,16 @@ export const CatastrofesView: React.FC = () => {
                     </button>
 
                     <button
+                      type="button"
+                      onClick={() => setIsLimpiarModalOpen(true)}
+                      className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                      title="Limpiar formulario o secciones"
+                    >
+                      <RotateCcw className="h-3.5 w-3.5 text-rose-500" />
+                      <span>Limpiar formulario</span>
+                    </button>
+
+                    <button
                       type="submit"
                       disabled={submitting}
                       className="px-4 py-2 rounded-[10px] bg-[#007AFF] hover:bg-[#0062CC] text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
@@ -3549,7 +4036,7 @@ export const CatastrofesView: React.FC = () => {
                         {editingSolicitudId
                           ? 'Guardar Cambios'
                           : registroModo === 'SOLICITUD_SOLO'
-                            ? 'Registrar Atención'
+                            ? 'Registrar Solicitud'
                             : 'Confirmar Entrega'}
                       </span>
                     </button>
@@ -3612,7 +4099,7 @@ export const CatastrofesView: React.FC = () => {
                     { step: 2, label: 'Núcleo Familiar', icon: Users },
                     { step: 3, label: 'RUFE', icon: FileText },
                     { step: 4, label: 'Afectación del Inmueble', icon: Home },
-                    { step: 5, label: 'Checklist de Ayudas', icon: ListCheck },
+                    { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
                     { step: 6, label: 'Observaciones', icon: Camera },
                   ] as const).map((tab) => {
                     const TabIcon = tab.icon;
@@ -4057,6 +4544,7 @@ export const CatastrofesView: React.FC = () => {
                             className="w-full px-3.5 py-2.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none text-slate-900 cursor-pointer min-w-0 truncate box-border"
                           >
                             <option value="Jefe(a) o cabeza del hogar">Jefe(a) o cabeza del hogar</option>
+                            <option value="Presidente(a) de la Junta de Acción Comunal">Presidente(a) de la Junta de Acción Comunal</option>
                             <option value="Pareja, Esposo(a)">Pareja, Esposo(a)</option>
                             <option value="Hijo(a), hijastro(a)">Hijo(a), hijastro(a)</option>
                             <option value="Padre, Madre, Suegro, Suegra">Padre, Madre, Suegro, Suegra</option>
@@ -4376,6 +4864,7 @@ export const CatastrofesView: React.FC = () => {
                                     className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-slate-800 cursor-pointer"
                                   >
                                     <option value="Jefe(a) o cabeza del hogar">Jefe(a) o cabeza del hogar</option>
+                                    <option value="Presidente(a) de la Junta de Acción Comunal">Presidente(a) de la Junta de Acción Comunal</option>
                                     <option value="Pareja, Esposo(a)">Pareja, Esposo(a)</option>
                                     <option value="Hijo(a), hijastro(a)">Hijo(a), hijastro(a)</option>
                                     <option value="Padre, Madre, Suegro, Suegra">Padre, Madre, Suegro, Suegra</option>
@@ -5318,18 +5807,14 @@ export const CatastrofesView: React.FC = () => {
                 </>
               )}
 
-              {/* TAB 5: Checklist de Insumos, Bienes y Materiales */}
+              {/* TAB 5: Entrega de ayudas */}
               {(formStepTab === 5 || registroModo === 'ENTREGA_EXISTENTE') && (
                 <div className="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
                   <div className="bg-[#0071e3] text-white px-5 py-3.5 flex flex-wrap justify-between items-center gap-2">
                     <div>
                       <h2 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                         <ListCheck className="h-4.5 w-4.5 text-white" />
-                        <span>
-                          {registroModo === 'ENTREGA_EXISTENTE'
-                            ? 'Checklist de Insumos, Bienes y Materiales a Entregar'
-                            : 'Checklist de Ayudas, Insumos, Bienes y Materiales'}
-                        </span>
+                        <span>Entrega de ayudas</span>
                       </h2>
                     </div>
                     <div className="bg-white/20 px-3 py-1 rounded-full text-xs font-bold text-white border border-white/30">
@@ -5385,7 +5870,7 @@ export const CatastrofesView: React.FC = () => {
                           onChange={(e) => setCategoriaFiltro(Number(e.target.value))}
                           className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
                         >
-                          <option value={0}>Todas las 10 Categorías de Atención</option>
+                          <option value={0}>Todas las Categorías de Atención ({DISASTER_TYPOLOGIES.filter((t) => t.id !== 10).length})</option>
                           {DISASTER_TYPOLOGIES.map((t) => (
                             <option key={t.id} value={t.id}>
                               {t.nombre}
@@ -5641,6 +6126,16 @@ export const CatastrofesView: React.FC = () => {
                     )}
 
                     <div className="flex flex-wrap items-center gap-3">
+                      <button
+                        type="button"
+                        onClick={() => setIsLimpiarModalOpen(true)}
+                        className="w-full sm:w-auto px-5 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
+                        title="Limpiar formulario o secciones"
+                      >
+                        <RotateCcw className="h-4 w-4 text-rose-600" />
+                        <span>Limpiar Formulario</span>
+                      </button>
+
                       {editingSolicitudId && (
                         <button
                           type="button"
@@ -5667,7 +6162,7 @@ export const CatastrofesView: React.FC = () => {
                               {editingSolicitudId
                                 ? `Guardar Cambios en Solicitud ${editingSolicitudCodigo || ''}`
                                 : registroModo === 'SOLICITUD_SOLO'
-                                  ? 'Guardar Censo Oficial'
+                                  ? 'Registrar Solicitud'
                                   : registroModo === 'ENTREGA_DIRECTA'
                                     ? 'Registrar Entrega Inmediata'
                                     : 'Completar y Atender Solicitud'}

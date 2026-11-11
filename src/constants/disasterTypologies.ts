@@ -136,4 +136,17 @@ export const DISASTER_TYPOLOGIES: TipologiaCatastrofe[] = [
       { code: "LOG_RESIDUOS", nombre: "Gestión de Residuos y Señalización (Bolsas Escombros / Cintas)" },
     ],
   },
+  {
+    id: 11,
+    nombre: "Kit de Arreglo de Vía y Maquinaria",
+    icono: "truck",
+    subtipos: [
+      { code: "VIA_AFIRMADO", nombre: "Afirmado" },
+      { code: "VIA_MAQUINARIA", nombre: "Maquinaria" },
+      { code: "VIA_GASOLINA", nombre: "Gasolina" },
+      { code: "VIA_CEMENTO", nombre: "Cemento" },
+      { code: "VIA_MANO_OBRA", nombre: "Mano de obra" },
+      { code: "VIA_OTROS", nombre: "Entre otros" },
+    ],
+  },
 ];
