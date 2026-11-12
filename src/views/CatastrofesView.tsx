@@ -9,6 +9,7 @@ import {
   Check,
   CheckCircle,
   CheckCircle2,
+  CheckSquare,
   ChevronDown,
   ChevronRight,
   ChevronUp,
@@ -41,6 +42,7 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   Sparkles,
+  Square,
   Tent,
   Trash2,
   Trees,
@@ -125,6 +127,10 @@ export const CatastrofesView: React.FC = () => {
   const [formStepTab, setFormStepTab] = useState<1 | 2 | 3 | 4 | 5 | 6>(1);
   const [isConfirmSubmitModalOpen, setIsConfirmSubmitModalOpen] = useState(false);
   const [isLimpiarModalOpen, setIsLimpiarModalOpen] = useState(false);
+  const [selectedTabsToClean, setSelectedTabsToClean] = useState<number[]>([1]);
+  const [isListarModalOpen, setIsListarModalOpen] = useState(false);
+  const [listarSearchQuery, setListarSearchQuery] = useState('');
+  const [listarEventoFiltro, setListarEventoFiltro] = useState<number | 'ALL'>('ALL');
   const [validationModal, setValidationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -528,6 +534,23 @@ export const CatastrofesView: React.FC = () => {
       (s) => s.estado_codigo === 'pending' && (!selectedEventoId || !s.id_evento || s.id_evento === selectedEventoId)
     );
   }, [todasSolicitudes, selectedEventoId]);
+
+  const filteredListarSolicitudes = useMemo(() => {
+    const q = listarSearchQuery.toLowerCase().trim();
+    return todasSolicitudes.filter((s: any) => {
+      if (listarEventoFiltro !== 'ALL' && s.id_evento && s.id_evento !== listarEventoFiltro) {
+        return false;
+      }
+      if (!q) return true;
+      const doc = String(s.documento || '').toLowerCase();
+      const nom = `${s.nombres || ''} ${s.apellidos || ''}`.toLowerCase();
+      const cod = String(s.codigo_solicitud || `SOL-${s.id_solicitud}`).toLowerCase();
+      const sec = String(s.nombre_sector || '').toLowerCase();
+      const dir = String(s.direccion_afectacion || s.direccion || '').toLowerCase();
+      const tel = String(s.telefono || '').toLowerCase();
+      return doc.includes(q) || nom.includes(q) || cod.includes(q) || sec.includes(q) || dir.includes(q) || tel.includes(q);
+    });
+  }, [todasSolicitudes, listarSearchQuery, listarEventoFiltro]);
 
   const checkIsRuralSector = (s: { nombre_sector?: string; id_tipo_sector?: number }) => {
     if (s.id_tipo_sector === 1) return true;
@@ -1360,6 +1383,101 @@ export const CatastrofesView: React.FC = () => {
     showToast('Todo el formulario ha sido limpiado y restablecido.', 'success');
   };
 
+  const openLimpiarModal = () => {
+    setSelectedTabsToClean([formStepTab]);
+    setIsLimpiarModalOpen(true);
+  };
+
+  const openListarModal = () => {
+    fetchSolicitudes();
+    setListarSearchQuery('');
+    setListarEventoFiltro('ALL');
+    setIsListarModalOpen(true);
+  };
+
+  const ejecutarLimpiezaPestanasSeleccionadas = () => {
+    if (selectedTabsToClean.length === 0) {
+      showToast('Selecciona al menos una pestaña para limpiar.', 'warning');
+      return;
+    }
+
+    if (selectedTabsToClean.length === 6) {
+      resetFormState();
+      showToast('Todas las pestañas del formulario han sido limpiadas y restablecidas.', 'success');
+      setIsLimpiarModalOpen(false);
+      return;
+    }
+
+    selectedTabsToClean.forEach((tabId) => {
+      switch (tabId) {
+        case 1:
+          setDocumento('');
+          setNombres('');
+          setApellidos('');
+          setTelefono('');
+          setDireccion('');
+          setObservacionIdentificacion('');
+          setObservacionSector('');
+          setParentescoCiudadano('Jefe(a) o cabeza del hogar');
+          break;
+        case 2:
+          setNucleoFamiliar([]);
+          setHayAcompanantes(false);
+          setNumAcompanantes(1);
+          setHayAdultosMayores(false);
+          setNumAdultosMayores(1);
+          setHayNinos(false);
+          setNumNinos(1);
+          setIdNucleoVinculado(null);
+          break;
+        case 3:
+          setCultivoTipo('');
+          setCultivoArea('');
+          setPecuarioEspecie('');
+          setPecuarioCantidad('');
+          setFormaTenenciaRufe('PROPIETARIO');
+          setEstadoBienRufe('HABITABLE');
+          setTipoBienRufe('Vivienda');
+          setVoboCmgrd(false);
+          setResidenciaHabitual(null);
+          setEvacuadoResidencia(null);
+          setCorregimiento('');
+          break;
+        case 4:
+          setAfectacionNivel('Ninguno');
+          setTechoDamageLevel('Ninguno');
+          setEstructuraDamageLevel('Ninguno');
+          setParedesDamageLevel('Ninguno');
+          setPisosDamageLevel('Ninguno');
+          setObservacionTecho('');
+          setObservacionEstructura('');
+          setObservacionAfectacion('');
+          setOtrosDanosDescripcion('');
+          setEstimacionPerdidasPesos('0');
+          setEvacuar(false);
+          setVisita(false);
+          setCenso(false);
+          setAlbergue(false);
+          setRedApoyo(false);
+          setTipoInmueble('Vivienda');
+          break;
+        case 5:
+          setSelectedSubtipos([]);
+          setCantidadesSubtipos({});
+          setCostoEstimadoAyuda('0');
+          break;
+        case 6:
+          setObservaciones('');
+          setFotosEntrega([]);
+          break;
+      }
+    });
+
+    const labels = selectedTabsToClean.map((t) => `Pestaña ${t}`).join(', ');
+    showToast(`Se limpiaron exitosamente las secciones seleccionadas (${labels}).`, 'success');
+    setIsLimpiarModalOpen(false);
+  };
+
   // Validación comprensiva con identificación de motivos para el usuario
   const validarFormulario = (): { valido: boolean; motivos: { campo: string; mensaje: string; tab?: 1 | 2 | 3 | 4 | 5 | 6 }[] } => {
     const motivos: { campo: string; mensaje: string; tab?: 1 | 2 | 3 | 4 | 5 | 6 }[] = [];
@@ -1583,12 +1701,20 @@ export const CatastrofesView: React.FC = () => {
       setEditingSolicitudCodigo(detail.codigo_solicitud || `SOL-${detail.id_solicitud}`);
       setRegistroModo('SOLICITUD_SOLO');
       setActiveTab('formulario');
-      showToast(`Modo edición activado para ${detail.codigo_solicitud || `SOL-${detail.id_solicitud}`}`, 'success');
+      setFormStepTab(1);
+      showToast(`Expediente ${detail.codigo_solicitud || `SOL-${detail.id_solicitud}`} cargado en el formulario`, 'success');
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error al cargar solicitud para edición:', error);
       showToast('No se pudo cargar la solicitud para edición', 'error');
     }
+  };
+
+  const handleSelectSolicitudDesdeListar = async (sol: any) => {
+    setIsListarModalOpen(false);
+    const id = sol.id_solicitud || sol.id;
+    if (!id) return;
+    await handleEditarSolicitud(id);
   };
 
   // Form Submit Handler
@@ -2635,7 +2761,7 @@ export const CatastrofesView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: Limpiar Formulario con selección de alcance (Apple Design System) */}
+      {/* MODAL: Limpiar Formulario con selección múltiple de pestañas y confirmación */}
       {isLimpiarModalOpen && (
         <div className="fixed inset-0 z-[9999] bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in duration-200">
           <div className="bg-white rounded-[24px] max-w-lg w-full p-6 shadow-[0_25px_60px_rgba(0,0,0,0.22)] border border-[#E5E5EA] space-y-4">
@@ -2647,7 +2773,7 @@ export const CatastrofesView: React.FC = () => {
                 <div>
                   <h3 className="text-base font-bold text-[#1D1D1F]">Limpiar Formulario</h3>
                   <p className="text-xs text-[#6E6E73]">
-                    ¿Qué sección o datos deseas restablecer?
+                    Selecciona las pestañas que deseas restablecer y confirma
                   </p>
                 </div>
               </div>
@@ -2660,146 +2786,321 @@ export const CatastrofesView: React.FC = () => {
               </button>
             </div>
 
-            <p className="text-xs text-slate-600">
-              Selecciona el alcance de la limpieza. Puedes limpiar únicamente la pestaña activa o secciones específicas sin afectar el resto de la información:
-            </p>
+            {/* Quick selection shortcuts */}
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-1 text-xs">
+              <span className="text-slate-500 font-medium">Seleccionar alcance:</span>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setSelectedTabsToClean([1, 2, 3, 4, 5, 6])}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-semibold text-[11px] transition cursor-pointer"
+                >
+                  Todas las pestañas
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTabsToClean([formStepTab])}
+                  className="px-2.5 py-1 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 font-semibold text-[11px] transition cursor-pointer"
+                >
+                  Solo activa (Pestaña {formStepTab})
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedTabsToClean([])}
+                  className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 font-semibold text-[11px] transition cursor-pointer"
+                >
+                  Deseleccionar
+                </button>
+              </div>
+            </div>
 
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[380px] overflow-y-auto pr-1">
-              {/* Opción 1: Pestaña Seleccionada Actual */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarPestanaSeleccionada();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-2xl border border-blue-200 bg-blue-50/50 hover:bg-blue-100/60 text-left transition flex items-start gap-2.5 cursor-pointer sm:col-span-2 group"
-              >
-                <div className="p-2 rounded-xl bg-blue-500 text-white shrink-0 group-hover:scale-105 transition">
-                  <SlidersHorizontal className="h-4 w-4" />
-                </div>
-                <div className="min-w-0">
-                  <div className="text-xs font-bold text-blue-950 flex items-center gap-1.5">
-                    <span>Pestaña seleccionada (Pestaña {formStepTab})</span>
-                    <span className="px-1.5 py-0.5 rounded-full text-[10px] bg-blue-200 text-blue-800 font-extrabold">Recomendado</span>
+            {/* Multi-Select Tabs Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5 max-h-[360px] overflow-y-auto pr-1">
+              {[
+                {
+                  id: 1,
+                  titulo: 'Pestaña 1: Persona / Ciudadano',
+                  desc: 'Documento, nombres, teléfono y sector',
+                  icon: User,
+                },
+                {
+                  id: 2,
+                  titulo: 'Pestaña 2: Núcleo Familiar',
+                  desc: 'Lista de integrantes y acompañantes',
+                  icon: Users,
+                },
+                {
+                  id: 3,
+                  titulo: 'Pestaña 3: RUFE / Agropecuario',
+                  desc: 'Cultivos, especies y tenencia',
+                  icon: FileText,
+                },
+                {
+                  id: 4,
+                  titulo: 'Pestaña 4: Atención al Inmueble',
+                  desc: 'Daños techo, paredes, evacuación y albergue',
+                  icon: Home,
+                },
+                {
+                  id: 5,
+                  titulo: 'Pestaña 5: Entrega de Ayudas',
+                  desc: 'Checklist de kits, ítems y cantidades',
+                  icon: ListCheck,
+                },
+                {
+                  id: 6,
+                  titulo: 'Pestaña 6: Observaciones y Evidencias',
+                  desc: 'Observaciones del caso y fotos adjuntas',
+                  icon: SlidersHorizontal,
+                },
+              ].map((tab) => {
+                const isSelected = selectedTabsToClean.includes(tab.id);
+                const IconComp = tab.icon;
+                return (
+                  <div
+                    key={tab.id}
+                    onClick={() => {
+                      setSelectedTabsToClean((prev) =>
+                        prev.includes(tab.id)
+                          ? prev.filter((id) => id !== tab.id)
+                          : [...prev, tab.id].sort((a, b) => a - b)
+                      );
+                    }}
+                    className={`p-3 rounded-2xl border transition flex items-start gap-2.5 cursor-pointer select-none ${
+                      isSelected
+                        ? 'border-blue-400 bg-blue-50/70 shadow-xs'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50/60 bg-white'
+                    }`}
+                  >
+                    <div className="mt-0.5 shrink-0">
+                      {isSelected ? (
+                        <CheckSquare className="h-4 w-4 text-[#007AFF]" />
+                      ) : (
+                        <Square className="h-4 w-4 text-slate-300" />
+                      )}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-1.5">
+                        <IconComp
+                          className={`h-3.5 w-3.5 shrink-0 ${
+                            isSelected ? 'text-[#007AFF]' : 'text-slate-500'
+                          }`}
+                        />
+                        <span
+                          className={`text-xs font-bold leading-tight ${
+                            isSelected ? 'text-blue-950' : 'text-slate-800'
+                          }`}
+                        >
+                          {tab.titulo}
+                        </span>
+                        {tab.id === formStepTab && (
+                          <span className="px-1.5 py-0.2 rounded-full text-[9px] bg-blue-200 text-blue-800 font-extrabold shrink-0">
+                            Activa
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[10px] text-slate-500 mt-1 leading-snug">{tab.desc}</p>
+                    </div>
                   </div>
-                  <p className="text-[11px] text-blue-700 mt-0.5">
-                    Limpia solo la pestaña activa:{' '}
-                    <strong>
-                      {formStepTab === 1 && 'Datos del Evento y Ciudadano'}
-                      {formStepTab === 2 && 'Núcleo Familiar'}
-                      {formStepTab === 3 && 'RUFE y Agropecuario'}
-                      {formStepTab === 4 && 'Atención y Afectación del Inmueble'}
-                      {formStepTab === 5 && 'Entrega de ayudas'}
-                      {formStepTab === 6 && 'Observaciones y Evidencias'}
-                    </strong>
+                );
+              })}
+            </div>
+
+            {/* Warning note if all selected */}
+            {selectedTabsToClean.length === 6 && (
+              <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-[11px] font-semibold flex items-center gap-2">
+                <Trash2 className="h-4 w-4 text-rose-600 shrink-0" />
+                <span>Atención: Se limpiará todo el formulario completo a su estado inicial.</span>
+              </div>
+            )}
+
+            {/* Footer with Confirmation Button */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-100">
+              <span className="text-xs text-slate-500 font-medium order-2 sm:order-1">
+                {selectedTabsToClean.length === 0 ? (
+                  <span className="text-amber-600 font-bold">Ninguna pestaña seleccionada</span>
+                ) : (
+                  <span>
+                    <strong>{selectedTabsToClean.length}</strong>{' '}
+                    {selectedTabsToClean.length === 1 ? 'pestaña seleccionada' : 'pestañas seleccionadas'}
+                  </span>
+                )}
+              </span>
+
+              <div className="flex items-center gap-2 w-full sm:w-auto justify-end order-1 sm:order-2">
+                <button
+                  type="button"
+                  onClick={() => setIsLimpiarModalOpen(false)}
+                  className="px-4 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition"
+                >
+                  Cancelar
+                </button>
+
+                <button
+                  type="button"
+                  disabled={selectedTabsToClean.length === 0}
+                  onClick={ejecutarLimpiezaPestanasSeleccionadas}
+                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs font-bold flex items-center gap-1.5 shadow-sm transition cursor-pointer"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  <span>
+                    Confirmar Limpieza ({selectedTabsToClean.length})
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: Listar Solicitudes y Cargar al Formulario */}
+      {isListarModalOpen && (
+        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.22)] border border-[#E5E5EA] flex flex-col max-h-[90vh] space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0 border border-[#007AFF]/20">
+                  <List className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="text-base font-bold text-[#1D1D1F]">Listado de Solicitudes Registradas</h3>
+                  <p className="text-xs text-[#6E6E73]">
+                    Busca por cédula o desplázate por la lista y haz clic en una solicitud para cargarla al formulario
                   </p>
                 </div>
-              </button>
-
-              {/* Opción 2: Persona */}
+              </div>
               <button
                 type="button"
-                onClick={() => {
-                  limpiarPersona();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
+                onClick={() => setIsListarModalOpen(false)}
+                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
-                <User className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Persona / Ciudadano</div>
-                  <p className="text-[10px] text-slate-500">Documento, nombres, teléfono y sector</p>
-                </div>
-              </button>
-
-              {/* Opción 3: Núcleo */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarNucleo();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
-              >
-                <Users className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Núcleo Familiar</div>
-                  <p className="text-[10px] text-slate-500">Lista de integrantes y acompañantes</p>
-                </div>
-              </button>
-
-              {/* Opción 4: RUFE */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarRufe();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
-              >
-                <FileText className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">RUFE / Agropecuario</div>
-                  <p className="text-[10px] text-slate-500">Cultivos, especies y tenencia</p>
-                </div>
-              </button>
-
-              {/* Opción 5: Atención al Inmueble */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarInmueble();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
-              >
-                <Home className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Atención al Inmueble</div>
-                  <p className="text-[10px] text-slate-500">Daños techo, paredes, evacuación y albergue</p>
-                </div>
-              </button>
-
-              {/* Opción 6: Entrega de ayudas */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarAyudas();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-slate-200 hover:border-slate-300 hover:bg-slate-50 text-left transition flex items-start gap-2 cursor-pointer"
-              >
-                <ListCheck className="h-4 w-4 text-slate-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-slate-900">Entrega de Ayudas</div>
-                  <p className="text-[10px] text-slate-500">Checklist de kits, ítems y cantidades</p>
-                </div>
-              </button>
-
-              {/* Opción 7: Todo el Formulario */}
-              <button
-                type="button"
-                onClick={() => {
-                  limpiarTodoFormulario();
-                  setIsLimpiarModalOpen(false);
-                }}
-                className="p-3 rounded-xl border border-rose-200 bg-rose-50/40 hover:bg-rose-100 text-left transition flex items-start gap-2 cursor-pointer sm:col-span-2"
-              >
-                <Trash2 className="h-4 w-4 text-rose-600 mt-0.5 shrink-0" />
-                <div>
-                  <div className="text-xs font-bold text-rose-900">Todo el Formulario (Completo)</div>
-                  <p className="text-[10px] text-rose-700">Restablece todos los campos a su estado inicial en blanco</p>
-                </div>
+                <X className="h-5 w-5" />
               </button>
             </div>
 
-            <div className="flex justify-end pt-2 border-t border-slate-100">
+            {/* Filter Bar */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+              <div className="relative sm:col-span-2">
+                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Buscar por cédula / documento, nombre, código SOL..."
+                  value={listarSearchQuery}
+                  onChange={(e) => setListarSearchQuery(e.target.value)}
+                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-[#007AFF] outline-none text-[#1D1D1F] transition"
+                />
+              </div>
+
+              <div className="flex items-center gap-2">
+                <select
+                  value={listarEventoFiltro}
+                  onChange={(e) => setListarEventoFiltro(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] focus:bg-white focus:ring-2 focus:ring-[#007AFF] outline-none cursor-pointer truncate"
+                >
+                  <option value="ALL">Todos los Eventos</option>
+                  {eventos.map((ev) => (
+                    <option key={ev.id_evento} value={ev.id_evento}>
+                      {ev.nombre_evento}
+                    </option>
+                  ))}
+                </select>
+
+                <button
+                  type="button"
+                  onClick={() => fetchSolicitudes()}
+                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition cursor-pointer shrink-0"
+                  title="Actualizar listado"
+                >
+                  <RefreshCw className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Results Count */}
+            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
+              <span>
+                Mostrando <strong>{filteredListarSolicitudes.length}</strong> solicitudes
+                {listarSearchQuery && ` para "${listarSearchQuery}"`}
+              </span>
+              <span className="text-[11px] text-[#007AFF] font-medium hidden sm:inline">
+                Haz clic en cualquier fila para cargarla al formulario
+              </span>
+            </div>
+
+            {/* Scrollable Results List */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[460px]">
+              {filteredListarSolicitudes.length === 0 ? (
+                <div className="py-12 text-center text-slate-400 space-y-2">
+                  <FileText className="h-8 w-8 mx-auto text-slate-300" />
+                  <p className="text-sm font-semibold text-slate-600">No se encontraron solicitudes</p>
+                  <p className="text-xs text-slate-400">
+                    {listarSearchQuery
+                      ? 'No hay registros que coincidan con la cédula o término buscado.'
+                      : 'Aún no hay solicitudes registradas para el evento seleccionado.'}
+                  </p>
+                </div>
+              ) : (
+                filteredListarSolicitudes.map((sol: any) => (
+                  <div
+                    key={sol.id_solicitud}
+                    onClick={() => handleSelectSolicitudDesdeListar(sol)}
+                    className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-[#007AFF] hover:bg-blue-50/40 hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer group"
+                  >
+                    <div className="space-y-1 min-w-0 flex-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-black bg-blue-100 text-blue-800 border border-blue-200 group-hover:bg-[#007AFF] group-hover:text-white group-hover:border-[#007AFF] transition-colors">
+                          {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                        </span>
+                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
+                          <User className="h-3.5 w-3.5 text-slate-400" />
+                          {sol.nombres} {sol.apellidos}
+                        </span>
+                        <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
+                          C.C. {sol.documento}
+                        </span>
+                      </div>
+
+                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
+                        {sol.nombre_sector && (
+                          <span className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                            {sol.nombre_sector}
+                          </span>
+                        )}
+                        {(sol.direccion_afectacion || sol.direccion) && (
+                          <span className="truncate max-w-[260px]">
+                            {sol.direccion_afectacion || sol.direccion}
+                          </span>
+                        )}
+                        {sol.fecha_solicitud && (
+                          <span className="text-[11px] font-mono text-slate-400">
+                            {sol.fecha_solicitud}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <div className="shrink-0 flex items-center gap-2 w-full sm:w-auto justify-end">
+                      <span className="px-3 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#007AFF] text-slate-700 group-hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
+                        <span>Cargar</span>
+                        <ArrowRight className="h-3.5 w-3.5" />
+                      </span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            {/* Footer */}
+            <div className="flex justify-end pt-3 border-t border-slate-100">
               <button
                 type="button"
-                onClick={() => setIsLimpiarModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer"
+                onClick={() => setIsListarModalOpen(false)}
+                className="px-4 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition"
               >
-                Cancelar
+                Cerrar
               </button>
             </div>
           </div>
@@ -4009,6 +4310,16 @@ export const CatastrofesView: React.FC = () => {
 
                     <button
                       type="button"
+                      onClick={openListarModal}
+                      className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#D2D2D7] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                      title="Listar y cargar solicitud en el formulario"
+                    >
+                      <List className="h-3.5 w-3.5 text-[#007AFF]" />
+                      <span>Listar</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={handleGuardarBorrador}
                       className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#D2D2D7] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                     >
@@ -4018,7 +4329,7 @@ export const CatastrofesView: React.FC = () => {
 
                     <button
                       type="button"
-                      onClick={() => setIsLimpiarModalOpen(true)}
+                      onClick={openLimpiarModal}
                       className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
                       title="Limpiar formulario o secciones"
                     >
@@ -6128,7 +6439,7 @@ export const CatastrofesView: React.FC = () => {
                     <div className="flex flex-wrap items-center gap-3">
                       <button
                         type="button"
-                        onClick={() => setIsLimpiarModalOpen(true)}
+                        onClick={openLimpiarModal}
                         className="w-full sm:w-auto px-5 py-3.5 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-2xl font-bold text-xs shadow-xs transition flex items-center justify-center gap-2 cursor-pointer"
                         title="Limpiar formulario o secciones"
                       >
