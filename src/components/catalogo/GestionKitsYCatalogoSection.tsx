@@ -1010,3 +1010,4 @@ export const GestionKitsYCatalogoSection: React.FC<Props> = ({ showToast }) => {
     </div>
   );
 };
+
