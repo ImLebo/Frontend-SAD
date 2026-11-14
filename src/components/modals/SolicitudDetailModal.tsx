@@ -34,6 +34,9 @@ import {
   HeartHandshake,
   Baby,
   Accessibility,
+  ClipboardCheck,
+  Plus,
+  CheckSquare
 } from 'lucide-react';
 import { sacService } from '../../services/sacService';
 import { SolicitudDetailResponse } from '../../types/sac.types';
@@ -55,12 +58,28 @@ export const SolicitudDetailModal: React.FC<Props> = ({
   onEditarEntrega,
   isCensoOnly = false,
 }) => {
-  const [detail, setDetail] = useState<SolicitudDetailResponse | null>(null);
+  const [detail, setDetail] = useState<SolicitudDetailResponse | any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'entregas' | 'fotos'>('censo');
+  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'entregas' | 'fotos'>('censo');
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [copiedGps, setCopiedGps] = useState(false);
   const [copiedDoc, setCopiedDoc] = useState(false);
+
+  // Visitas Técnicas de Verificación State
+  const [isVisitaModalOpen, setIsVisitaModalOpen] = useState(false);
+  const [savingVisita, setSavingVisita] = useState(false);
+  const [visitaForm, setVisitaForm] = useState({
+    profesional_responsable: '',
+    cargo_responsable: 'Técnico / Ingeniero Gestión del Riesgo',
+    dictamen_tecnico: 'MODERADO',
+    afectacion_muros: 'Parcial',
+    afectacion_techos: 'Parcial',
+    afectacion_pisos: 'Ninguno',
+    requiere_evacuacion: false,
+    requiere_demolicion: false,
+    costo_estimado_danos: 0,
+    observaciones_tecnicas: ''
+  });
 
   useEffect(() => {
     if (idSolicitud) {
@@ -77,6 +96,36 @@ export const SolicitudDetailModal: React.FC<Props> = ({
       console.error('Error cargando información de la solicitud', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuardarVisita = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!visitaForm.profesional_responsable.trim()) {
+      alert('Debes ingresar el nombre del profesional responsable.');
+      return;
+    }
+    setSavingVisita(true);
+    try {
+      await sacService.registrarVisitaTecnica(idSolicitud!, visitaForm);
+      setIsVisitaModalOpen(false);
+      setVisitaForm({
+        profesional_responsable: '',
+        cargo_responsable: 'Técnico / Ingeniero Gestión del Riesgo',
+        dictamen_tecnico: 'MODERADO',
+        afectacion_muros: 'Parcial',
+        afectacion_techos: 'Parcial',
+        afectacion_pisos: 'Ninguno',
+        requiere_evacuacion: false,
+        requiere_demolicion: false,
+        costo_estimado_danos: 0,
+        observaciones_tecnicas: ''
+      });
+      loadDetail();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Error al registrar visita técnica');
+    } finally {
+      setSavingVisita(false);
     }
   };
 
@@ -291,6 +340,19 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               >
                 <ListCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'insumos' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Insumos ({detail?.items_solicitados?.length || 0})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('visitas')}
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
+                  activeTab === 'visitas'
+                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <ClipboardCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'visitas' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <span className="truncate">Visitas Técnicas ({detail?.visitas_tecnicas?.length || 0})</span>
               </button>
 
               <button
@@ -627,6 +689,185 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                         </div>
                       )}
                     </div>
+
+                    {/* 4. Caracterización Jurídica de Tenencia y Catastro */}
+                    <div className="bg-white rounded-2xl border border-slate-200 p-4 sm:p-5 shadow-2xs space-y-3">
+                      <div className="flex items-center justify-between border-b border-slate-100 pb-2.5">
+                        <div className="flex items-center gap-2 text-slate-900 font-extrabold text-xs uppercase tracking-wide">
+                          <Building2 className="h-4 w-4 text-indigo-700" />
+                          <span>Tenencia Jurídica y Ficha Catastral</span>
+                        </div>
+                        <span className="text-[10px] font-bold bg-indigo-50 text-indigo-800 px-2.5 py-0.5 rounded-md border border-indigo-200">
+                          Derechos de Asistencia
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                            Modalidad de Tenencia del Afectado
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <span className="font-black text-slate-900">
+                              {detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
+                                ? 'Propietario Residente'
+                                : detail.tipo_tenencia === 'ARRENDATARIO'
+                                ? 'Arrendatario / Inquilino'
+                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                                ? 'Propietario No Residente'
+                                : detail.condicion_vivienda || 'No especificada'}
+                            </span>
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
+                              detail.tipo_tenencia === 'ARRENDATARIO'
+                                ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
+                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {detail.tipo_tenencia === 'ARRENDATARIO'
+                                ? 'Subsidio Arriendo + Kits'
+                                : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
+                                ? 'Kits + Subsidios + Reconstrucción'
+                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                                ? 'Solo Reconstrucción Estructural'
+                                : 'Titular'}
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-slate-600 mt-1">
+                            {detail.tipo_tenencia === 'ARRENDATARIO'
+                              ? 'El arrendatario es el titular receptor del auxilio de arrendamiento temporal y ayudas de asistencia humanitaria inmediata.'
+                              : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
+                              ? 'Habita el predio afectado; tiene derecho integral a kits, subsidios de evacuación y programas de reconstrucción.'
+                              : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                              ? 'No habita el inmueble. Su derecho se orienta a la reclamación de afectación de bienes inmuebles para obras públicas/reparación, no a kits de subsistencia alimentaria.'
+                              : 'Condición declarada en el censo unificado.'}
+                          </p>
+                        </div>
+
+                        <div className="p-3 bg-slate-50 rounded-xl border border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">
+                            Ficha Catastral / Matrícula Inmobiliaria
+                          </span>
+                          <span className="font-mono text-xs font-bold text-slate-900 block">
+                            {detail.ficha_catastral || 'Sin número de ficha catastral registrado'}
+                          </span>
+                          <span className="text-[11px] text-slate-500 mt-1 block">
+                            Número de identificación predial ante la Oficina de Catastro y Registro de Instrumentos Públicos.
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* 5. Afectación en Locales Comerciales (Si Aplica) */}
+                    {(detail.es_local_comercial || detail.comercio_razon_social) && (
+                      <div className="bg-white rounded-2xl border border-amber-200 p-4 sm:p-5 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between border-b border-amber-100 pb-2.5">
+                          <div className="flex items-center gap-2 text-amber-900 font-extrabold text-xs uppercase tracking-wide">
+                            <Building2 className="h-4 w-4 text-amber-700" />
+                            <span>Afectación en Establecimiento de Comercio</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-amber-100 text-amber-900 px-2.5 py-0.5 rounded-md border border-amber-300">
+                            Sector Productivo y Comercial
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                          <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase block mb-1">
+                              Razón Social / Nombre del Negocio
+                            </span>
+                            <span className="font-bold text-slate-900 block">
+                              {detail.comercio_razon_social || 'Comercio local sin registro'}
+                            </span>
+                            <span className="text-[11px] text-slate-600 block mt-1">
+                              NIT / RUT: <strong className="font-mono">{detail.comercio_nit_rut || 'No registra'}</strong>
+                            </span>
+                          </div>
+
+                          <div className="p-3 bg-amber-50/50 rounded-xl border border-amber-200">
+                            <span className="text-[10px] font-bold text-amber-800 uppercase block mb-1">
+                              Pérdidas de Mercancía / Inventario
+                            </span>
+                            <p className="text-[11px] text-slate-800 leading-relaxed font-medium">
+                              {detail.comercio_afectacion_mercancia || 'No se registraron daños específicos a inventarios o vitrinas.'}
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 6. Datos de Representación Comunitaria / JAC (Si Aplica) */}
+                    {(detail.tipo_destinatario === 'COMUNIDAD' || detail.comunidad_jac_nombre) && (
+                      <div className="bg-white rounded-2xl border border-blue-200 p-4 sm:p-5 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between border-b border-blue-100 pb-2.5">
+                          <div className="flex items-center gap-2 text-blue-900 font-extrabold text-xs uppercase tracking-wide">
+                            <Users className="h-4 w-4 text-blue-700" />
+                            <span>Junta de Acción Comunal / Solicitud Comunitaria</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-blue-100 text-blue-900 px-2.5 py-0.5 rounded-md border border-blue-300">
+                            Organización Comunal
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200">
+                            <span className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Nombre JAC / Sector</span>
+                            <span className="font-bold text-slate-900 block">{detail.comunidad_jac_nombre || '-'}</span>
+                          </div>
+                          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200">
+                            <span className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Personería Jurídica</span>
+                            <span className="font-mono font-bold text-slate-900 block">{detail.comunidad_jac_personeria || 'En trámite'}</span>
+                          </div>
+                          <div className="p-3 bg-blue-50/50 rounded-xl border border-blue-200">
+                            <span className="text-[10px] font-bold text-blue-800 uppercase block mb-1">Representante Legal</span>
+                            <span className="font-bold text-slate-900 block">{detail.comunidad_jac_representante || detail.ciudadano?.nombre_completo}</span>
+                            <span className="text-[11px] text-slate-600 block mt-0.5">Tel: {detail.comunidad_jac_telefono || detail.ciudadano?.telefono || '-'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 7. Infraestructura Rural y Fincas Agropecuarias (Si Aplica) */}
+                    {Array.isArray(detail.infraestructuras_rurales) && detail.infraestructuras_rurales.length > 0 && (
+                      <div className="bg-white rounded-2xl border border-emerald-200 p-4 sm:p-5 shadow-2xs space-y-3">
+                        <div className="flex items-center justify-between border-b border-emerald-100 pb-2.5">
+                          <div className="flex items-center gap-2 text-emerald-900 font-extrabold text-xs uppercase tracking-wide">
+                            <Leaf className="h-4 w-4 text-emerald-700" />
+                            <span>Infraestructuras Rurales y Productivas de la Finca</span>
+                          </div>
+                          <span className="text-[10px] font-bold bg-emerald-100 text-emerald-900 px-2.5 py-0.5 rounded-md border border-emerald-300">
+                            {detail.infraestructuras_rurales.length} instalaciones evaluadas
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+                          {detail.infraestructuras_rurales.map((infra: any, idx: number) => (
+                            <div key={idx} className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-200 text-xs space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="font-bold text-emerald-950">{infra.tipo_infraestructura}</span>
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
+                                  infra.estado_dano === 'Colapso Total'
+                                    ? 'bg-rose-100 text-rose-800'
+                                    : infra.estado_dano === 'Grave'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : 'bg-emerald-100 text-emerald-800'
+                                }`}>
+                                  {infra.estado_dano}
+                                </span>
+                              </div>
+                              {infra.observaciones && (
+                                <p className="text-[11px] text-slate-700 italic">"{infra.observaciones}"</p>
+                              )}
+                              {infra.costo_estimado_reparacion > 0 && (
+                                <div className="text-[11px] font-bold text-slate-900 pt-1 border-t border-emerald-100">
+                                  Costo est: $ {Number(infra.costo_estimado_reparacion).toLocaleString()} COP
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -944,6 +1185,116 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                   </div>
                 )}
 
+                {/* ==================== PESTAÑA: VISITAS TÉCNICAS DE VERIFICACIÓN ==================== */}
+                {activeTab === 'visitas' && (
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between bg-white p-4 rounded-2xl border border-slate-200">
+                      <div>
+                        <h4 className="text-sm font-bold text-slate-900">
+                          Visitas Técnicas de Verificación en Terreno
+                        </h4>
+                        <p className="text-xs text-slate-500">
+                          Dictámenes de inspección oficial por parte de ingenieros o técnicos de la UNGRD.
+                        </p>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => setIsVisitaModalOpen(true)}
+                        className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+                      >
+                        <Plus className="h-4 w-4" />
+                        <span>Registrar Visita Técnica</span>
+                      </button>
+                    </div>
+
+                    {(!detail.visitas_tecnicas || detail.visitas_tecnicas.length === 0) ? (
+                      <div className="py-12 text-center text-slate-500 text-xs bg-white rounded-2xl border border-slate-200 p-6 space-y-2">
+                        <ClipboardCheck className="h-8 w-8 text-slate-400 mx-auto" />
+                        <p className="font-semibold text-slate-800">No se registran visitas técnicas de verificación para este predio.</p>
+                        <p className="text-slate-500 text-[11px]">Haz clic en "Registrar Visita Técnica" para documentar la inspección oficial de la UNGRD.</p>
+                      </div>
+                    ) : (
+                      detail.visitas_tecnicas.map((vis: any) => (
+                        <div
+                          key={vis.id_visita}
+                          className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-2xs space-y-3"
+                        >
+                          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-0.5 rounded-lg">
+                                Visita Técnica #{vis.numero_visita}
+                              </span>
+                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                                vis.dictamen_tecnico === 'COLAPSO_INMINENTE' || vis.dictamen_tecnico === 'SEVERO' || vis.dictamen_tecnico === 'DESHABITABLE'
+                                  ? 'bg-rose-100 text-rose-800 border border-rose-200'
+                                  : vis.dictamen_tecnico === 'MODERADO'
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                              }`}>
+                                Dictamen: {vis.dictamen_tecnico}
+                              </span>
+                            </div>
+
+                            <span className="text-xs text-slate-500 font-medium">
+                              {formatFecha(vis.fecha_visita)}
+                            </span>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                              <span className="text-slate-500 block text-[10px] uppercase font-bold">Profesional Responsable</span>
+                              <span className="font-bold text-slate-800 block">{vis.profesional_responsable}</span>
+                              <span className="text-slate-600 text-[11px]">{vis.cargo_responsable || 'Técnico de Gestión del Riesgo'}</span>
+                            </div>
+
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                              <span className="text-slate-500 block text-[10px] uppercase font-bold">Daños Estructurales Verificados</span>
+                              <div className="mt-1 space-y-0.5 text-[11px]">
+                                <div>Muros/Paredes: <strong className="text-slate-800">{vis.afectacion_muros}</strong></div>
+                                <div>Techo/Cubierta: <strong className="text-slate-800">{vis.afectacion_techos}</strong></div>
+                                <div>Pisos: <strong className="text-slate-800">{vis.afectacion_pisos}</strong></div>
+                              </div>
+                            </div>
+
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200">
+                              <span className="text-slate-500 block text-[10px] uppercase font-bold">Criterios de Seguridad</span>
+                              <div className="mt-1 space-y-1">
+                                {vis.requiere_evacuacion ? (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800 mr-1">
+                                    Requiere Evacuación
+                                  </span>
+                                ) : (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-medium bg-slate-200 text-slate-700 mr-1">
+                                    No requiere evacuación
+                                  </span>
+                                )}
+                                {vis.requiere_demolicion && (
+                                  <span className="inline-block px-2 py-0.5 rounded text-[10px] font-bold bg-rose-600 text-white">
+                                    Requiere Demolición
+                                  </span>
+                                )}
+                                {vis.costo_estimado_danos > 0 && (
+                                  <div className="text-[11px] font-bold text-slate-800 mt-1">
+                                    Daños estimados: $ {Number(vis.costo_estimado_danos).toLocaleString()} COP
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {vis.observaciones_tecnicas && (
+                            <div className="text-xs bg-slate-50 p-3 rounded-xl border border-slate-200">
+                              <span className="font-bold text-slate-700 block text-[10px] uppercase mb-0.5">Observaciones Técnicas:</span>
+                              <p className="text-slate-700 leading-relaxed">{vis.observaciones_tecnicas}</p>
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    )}
+                  </div>
+                )}
+
                 {/* ==================== PESTAÑA 5: ENTREGAS REALIZADAS ==================== */}
                 {activeTab === 'entregas' && (
                   <div className="space-y-3">
@@ -971,19 +1322,48 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                           className="bg-white border border-slate-200 p-4 sm:p-5 rounded-2xl shadow-2xs space-y-2.5"
                         >
                           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono text-xs font-black bg-emerald-100 text-emerald-900 border border-emerald-200 px-2.5 py-0.5 rounded-lg">
                                 {ent.codigo_entrega}
                               </span>
                               <span className="text-xs font-black text-slate-900">
                                 {ent.nombre_item || 'Ayuda Humanitaria'} x {ent.cantidad || 1}
                               </span>
+                              {ent.nombre_entidad_donante && (
+                                <span className="text-[10px] font-bold bg-blue-50 text-blue-800 border border-blue-200 px-2 py-0.5 rounded-md">
+                                  🏛️ Donante: {ent.nombre_entidad_donante}
+                                </span>
+                              )}
+                              {(ent.costo_total_entrega || ent.costo_total) > 0 && (
+                                <span className="text-[10px] font-bold bg-emerald-50 text-emerald-800 border border-emerald-200 px-2 py-0.5 rounded-md">
+                                  💰 $ {Number(ent.costo_total_entrega || ent.costo_total).toLocaleString()} COP
+                                </span>
+                              )}
                             </div>
                             <span className="text-xs text-slate-500 font-medium flex items-center gap-1">
                               <Clock className="h-3 w-3 text-slate-400" />
                               <span>{formatFechaCorta(ent.fecha)}</span>
                             </span>
                           </div>
+
+                          {/* Subcomponentes de Kit Entregados */}
+                          {Array.isArray(ent.componentes) && ent.componentes.length > 0 && (
+                            <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-200 space-y-1">
+                              <span className="text-[10px] font-bold uppercase text-slate-500 block">
+                                Componentes y Dotación Incluida en este Kit:
+                              </span>
+                              <div className="flex flex-wrap gap-1.5">
+                                {ent.componentes.map((comp: any, cIdx: number) => (
+                                  <span
+                                    key={cIdx}
+                                    className="text-[11px] font-semibold bg-white border border-slate-300 text-slate-800 px-2 py-0.5 rounded-lg shadow-2xs"
+                                  >
+                                    ✓ {comp.nombre_componente || comp.nombre || comp} {comp.cantidad ? `(x${comp.cantidad})` : ''}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
                           {ent.observaciones && (
                             <p className="text-xs text-slate-700 italic">
                               "{ent.observaciones}"
@@ -1075,6 +1455,207 @@ export const SolicitudDetailModal: React.FC<Props> = ({
           </div>
         </div>
       </div>
+
+      {/* Modal para Registrar Visita Técnica de Verificación */}
+      {isVisitaModalOpen && (
+        <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
+          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
+            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
+                  <ClipboardCheck className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-extrabold text-sm text-slate-900">
+                    Registrar Visita Técnica de Terreno
+                  </h3>
+                  <p className="text-[11px] text-slate-500">
+                    Inspección y dictamen oficial de la UNGRD / Unidad Municipal de Gestión del Riesgo
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsVisitaModalOpen(false)}
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <form onSubmit={handleGuardarVisita} className="p-5 overflow-y-auto space-y-4 text-xs">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Profesional Responsable *
+                  </label>
+                  <input
+                    type="text"
+                    required
+                    value={visitaForm.profesional_responsable}
+                    onChange={(e) => setVisitaForm({ ...visitaForm, profesional_responsable: e.target.value })}
+                    placeholder="Ej. Ing. Carlos Pérez"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-medium"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                    Cargo / Rol Oficial
+                  </label>
+                  <input
+                    type="text"
+                    value={visitaForm.cargo_responsable}
+                    onChange={(e) => setVisitaForm({ ...visitaForm, cargo_responsable: e.target.value })}
+                    placeholder="Ej. Técnico Gestión del Riesgo"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-medium"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Dictamen Técnico General *
+                </label>
+                <select
+                  value={visitaForm.dictamen_tecnico}
+                  onChange={(e) => setVisitaForm({ ...visitaForm, dictamen_tecnico: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-bold"
+                >
+                  <option value="HABITABLE">HABITABLE (Sin riesgo inminente)</option>
+                  <option value="LEVE">LEVE (Daños superficiales o reparables)</option>
+                  <option value="MODERADO">MODERADO (Requiere intervención técnica)</option>
+                  <option value="SEVERO">SEVERO (Afectación estructural grave)</option>
+                  <option value="DESHABITABLE">DESHABITABLE (No apto para habitación)</option>
+                  <option value="COLAPSO_INMINENTE">COLAPSO INMINENTE (Riesgo vital inminente)</option>
+                </select>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
+                <span className="text-[11px] font-bold text-slate-600 block">
+                  Afectaciones Estructurales Verificadas:
+                </span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Paredes/Muros</label>
+                    <select
+                      value={visitaForm.afectacion_muros}
+                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_muros: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                    >
+                      <option value="Ninguno">Ninguno</option>
+                      <option value="Leve">Leve</option>
+                      <option value="Parcial">Parcial</option>
+                      <option value="Total">Total</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Techos/Cubierta</label>
+                    <select
+                      value={visitaForm.afectacion_techos}
+                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_techos: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                    >
+                      <option value="Ninguno">Ninguno</option>
+                      <option value="Leve">Leve</option>
+                      <option value="Parcial">Parcial</option>
+                      <option value="Total">Total</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Pisos/Cimientos</label>
+                    <select
+                      value={visitaForm.afectacion_pisos}
+                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_pisos: e.target.value })}
+                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                    >
+                      <option value="Ninguno">Ninguno</option>
+                      <option value="Leve">Leve</option>
+                      <option value="Parcial">Parcial</option>
+                      <option value="Total">Total</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <label className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={visitaForm.requiere_evacuacion}
+                    onChange={(e) => setVisitaForm({ ...visitaForm, requiere_evacuacion: e.target.checked })}
+                    className="h-4 w-4 rounded text-blue-600"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900 block text-[11px]">Requiere Evacuación</span>
+                    <span className="text-[10px] text-slate-500">Orden de desocupación preventiva</span>
+                  </div>
+                </label>
+
+                <label className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
+                  <input
+                    type="checkbox"
+                    checked={visitaForm.requiere_demolicion}
+                    onChange={(e) => setVisitaForm({ ...visitaForm, requiere_demolicion: e.target.checked })}
+                    className="h-4 w-4 rounded text-rose-600"
+                  />
+                  <div>
+                    <span className="font-bold text-slate-900 block text-[11px]">Requiere Demolición</span>
+                    <span className="text-[10px] text-slate-500">Ruina o riesgo para terceros</span>
+                  </div>
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Costo Estimado de Daños (COP)
+                </label>
+                <input
+                  type="number"
+                  min="0"
+                  step="50000"
+                  value={visitaForm.costo_estimado_danos}
+                  onChange={(e) => setVisitaForm({ ...visitaForm, costo_estimado_danos: Number(e.target.value) })}
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-mono font-bold"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-slate-700 mb-1">
+                  Observaciones y Recomendaciones Técnicas
+                </label>
+                <textarea
+                  rows={3}
+                  value={visitaForm.observaciones_tecnicas}
+                  onChange={(e) => setVisitaForm({ ...visitaForm, observaciones_tecnicas: e.target.value })}
+                  placeholder="Detalles sobre grietas estructurales, riesgo de deslizamiento en talud posterior, recomendaciones de obras de mitigación..."
+                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 text-xs"
+                />
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setIsVisitaModalOpen(false)}
+                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={savingVisita}
+                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                >
+                  {savingVisita ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
+                  <span>{savingVisita ? 'Guardando...' : 'Registrar Dictamen de Visita'}</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* Lightbox / Visor de Fotos en Alta Resolución */}
       {selectedPhotoUrl && (

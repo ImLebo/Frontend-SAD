@@ -16,10 +16,104 @@ export const sacService = {
     return res.data;
   },
 
-  getItems: async (categoria_id?: number): Promise<ItemAyuda[]> => {
+  getItems: async (categoria_id?: number, solo_kits?: boolean): Promise<ItemAyuda[]> => {
     const res = await apiClient.get('/catalogos/items', {
-      params: { categoria_id },
+      params: { categoria_id, solo_kits },
     });
+    return res.data;
+  },
+
+  getItemDetalle: async (id_item: number): Promise<ItemAyuda> => {
+    const res = await apiClient.get(`/catalogos/items/${id_item}`);
+    return res.data;
+  },
+
+  crearItem: async (payload: any): Promise<ItemAyuda> => {
+    const res = await apiClient.post('/catalogos/items', payload);
+    return res.data;
+  },
+
+  actualizarItem: async (id_item: number, payload: any): Promise<ItemAyuda> => {
+    const res = await apiClient.put(`/catalogos/items/${id_item}`, payload);
+    return res.data;
+  },
+
+  eliminarItem: async (id_item: number): Promise<any> => {
+    const res = await apiClient.delete(`/catalogos/items/${id_item}`);
+    return res.data;
+  },
+
+  // Gestión de Categorías de Ayuda
+  getCategorias: async (todas: boolean = false): Promise<any[]> => {
+    const res = await apiClient.get('/catalogos/categorias', {
+      params: { todas },
+    });
+    return res.data;
+  },
+
+  crearCategoria: async (payload: {
+    nombre_categoria: string;
+    descripcion?: string;
+    icono?: string;
+    activo?: boolean;
+  }): Promise<any> => {
+    const res = await apiClient.post('/catalogos/categorias', payload);
+    return res.data;
+  },
+
+  actualizarCategoria: async (id_categoria: number, payload: any): Promise<any> => {
+    const res = await apiClient.put(`/catalogos/categorias/${id_categoria}`, payload);
+    return res.data;
+  },
+
+  eliminarCategoria: async (id_categoria: number): Promise<any> => {
+    const res = await apiClient.delete(`/catalogos/categorias/${id_categoria}`);
+    return res.data;
+  },
+
+  // Gestión de Sub-Componentes de Kits
+  agregarComponenteKit: async (id_item: number, payload: any): Promise<any> => {
+    const res = await apiClient.post(`/catalogos/items/${id_item}/componentes`, payload);
+    return res.data;
+  },
+
+  actualizarComponenteKit: async (id_componente: number, payload: any): Promise<any> => {
+    const res = await apiClient.put(`/catalogos/componentes/${id_componente}`, payload);
+    return res.data;
+  },
+
+  eliminarComponenteKit: async (id_componente: number): Promise<any> => {
+    const res = await apiClient.delete(`/catalogos/componentes/${id_componente}`);
+    return res.data;
+  },
+
+  // Entidades Donantes (Multiorigen)
+  getEntidadesDonantes: async (todas: boolean = false): Promise<any[]> => {
+    const res = await apiClient.get('/catalogos/entidades-donantes', {
+      params: { todas },
+    });
+    return res.data;
+  },
+
+  // Visitas Técnicas de Verificación
+  getVisitasTecnicas: async (id_solicitud: number): Promise<any[]> => {
+    const res = await apiClient.get(`/solicitudes/${id_solicitud}/visitas`);
+    return res.data;
+  },
+
+  registrarVisitaTecnica: async (id_solicitud: number, payload: any): Promise<any> => {
+    const res = await apiClient.post(`/solicitudes/${id_solicitud}/visitas`, payload);
+    return res.data;
+  },
+
+  // Infraestructuras Rurales en Fincas
+  getInfraestructurasRurales: async (id_solicitud: number): Promise<any[]> => {
+    const res = await apiClient.get(`/solicitudes/${id_solicitud}/infraestructura-rural`);
+    return res.data;
+  },
+
+  agregarInfraestructuraRural: async (id_solicitud: number, payload: any): Promise<any> => {
+    const res = await apiClient.post(`/solicitudes/${id_solicitud}/infraestructura-rural`, payload);
     return res.data;
   },
 

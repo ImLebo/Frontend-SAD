@@ -18,6 +18,27 @@ export interface SectorItem {
   longitud?: number | null;
 }
 
+export interface KitComponente {
+  id_componente?: number;
+  id_item?: number;
+  nombre_componente: string;
+  descripcion?: string | null;
+  cantidad_estandar: number;
+  unidad_medida: string;
+  es_obligatorio: boolean;
+  orden?: number;
+  activo?: boolean;
+}
+
+export interface CategoriaAyuda {
+  id_categoria: number;
+  nombre_categoria: string;
+  descripcion?: string | null;
+  icono?: string;
+  activo: boolean;
+  cantidad_items?: number;
+}
+
 export interface ItemAyuda {
   id_item: number;
   id_categoria: number;
@@ -27,6 +48,56 @@ export interface ItemAyuda {
   unidad_medida: string;
   stock_disponible: number;
   activo: boolean;
+  costo_referencia?: number;
+  descripcion?: string | null;
+  es_kit?: boolean;
+  permite_personalizacion?: boolean;
+  icono_categoria?: string;
+  cantidad_componentes?: number;
+  componentes?: KitComponente[];
+}
+
+export interface EntidadDonante {
+  id_entidad: number;
+  codigo_entidad: string;
+  nombre_entidad: string;
+  tipo_entidad: string;
+  contacto_nombre?: string | null;
+  contacto_telefono?: string | null;
+  activo: boolean;
+}
+
+export interface VisitaTecnica {
+  id_visita?: number;
+  id_solicitud?: number;
+  numero_visita?: number;
+  fecha_visita?: string;
+  profesional_responsable: string;
+  cargo_responsable?: string;
+  dictamen_tecnico: string;
+  afectacion_muros: string;
+  afectacion_techos: string;
+  afectacion_pisos: string;
+  requiere_evacuacion: boolean;
+  requiere_demolicion: boolean;
+  costo_estimado_danos?: number;
+  observaciones_tecnicas?: string;
+  fotos_evidencia?: string[];
+  kits_recomendados_json?: any;
+  created_at?: string;
+}
+
+export interface InfraestructuraRural {
+  id_infraestructura?: number;
+  id_solicitud?: number;
+  tipo_infraestructura: string;
+  nombre_identificador?: string;
+  dano_estructura?: string;
+  dano_techo?: string;
+  estado_dano?: string;
+  costo_estimado_reparacion?: number;
+  observaciones?: string;
+  fotos_evidencia?: string[];
 }
 
 export interface CiudadanoData {
@@ -145,6 +216,18 @@ export interface SolicitudDetailResponse {
   id_estado: number;
   nombre_estado: string;
   observaciones_sector?: string;
+  ficha_catastral?: string;
+  tipo_tenencia?: string;
+  comunidad_jac_nombre?: string;
+  comunidad_jac_personeria?: string;
+  comunidad_jac_representante?: string;
+  comunidad_jac_telefono?: string;
+  es_local_comercial?: boolean;
+  comercio_razon_social?: string;
+  comercio_nit_rut?: string;
+  comercio_afectacion_mercancia?: string;
+  infraestructuras_rurales?: InfraestructuraRural[];
+  visitas_tecnicas?: VisitaTecnica[];
   ciudadano: CiudadanoData;
   sector: SectorItem;
   evaluacion_dano?: EvaluacionDanoData;

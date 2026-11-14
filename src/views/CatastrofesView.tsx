@@ -400,6 +400,36 @@ export const CatastrofesView: React.FC = () => {
   const [isParedesPisosOpen, setIsParedesPisosOpen] = useState(true);
   const [isInmuebleDatosOpen, setIsInmuebleDatosOpen] = useState(true);
 
+  // Evolución Catálogo Kits, Tenencia y Ficha Catastral
+  const [fichaCatastral, setFichaCatastral] = useState('');
+  const [tipoTenencia, setTipoTenencia] = useState<'PROPIETARIO_RESIDENTE' | 'ARRENDATARIO' | 'PROPIETARIO_NO_RESIDENTE'>('PROPIETARIO_RESIDENTE');
+
+  // JAC / Comunidad
+  const [comunidadJacNombre, setComunidadJacNombre] = useState('');
+  const [comunidadJacPersoneria, setComunidadJacPersoneria] = useState('');
+  const [comunidadJacRepresentante, setComunidadJacRepresentante] = useState('');
+  const [comunidadJacTelefono, setComunidadJacTelefono] = useState('');
+
+  // Local Comercial
+  const [esLocalComercial, setEsLocalComercial] = useState(false);
+  const [comercioRazonSocial, setComercioRazonSocial] = useState('');
+  const [comercioNitRut, setComercioNitRut] = useState('');
+  const [comercioAfectacionMercancia, setComercioAfectacionMercancia] = useState('');
+
+  // Infraestructuras Rurales (Finca)
+  const [infraestructurasRurales, setInfraestructurasRurales] = useState<
+    Array<{
+      tipo_infraestructura: string;
+      estado_dano: 'Leve' | 'Parcial' | 'Grave' | 'Colapso Total';
+      observaciones: string;
+      costo_estimado_reparacion: number;
+    }>
+  >([]);
+
+  // Entidades Donantes & Subcomponentes de Kits para entregas
+  const [entidadesDonantes, setEntidadesDonantes] = useState<any[]>([]);
+  const [selectedEntidadDonanteId, setSelectedEntidadDonanteId] = useState<number | null>(null);
+
   // Checklist & Item Quantities
   const [selectedSubtipos, setSelectedSubtipos] = useState<string[]>([]);
   const [cantidadesSubtipos, setCantidadesSubtipos] = useState<Record<string, number>>({});
@@ -472,12 +502,17 @@ export const CatastrofesView: React.FC = () => {
 
   const loadCatalogs = async () => {
     try {
-      const [secs, items] = await Promise.all([
+      const [secs, items, donantes] = await Promise.all([
         sacService.getSectores(),
         sacService.getItems(),
+        sacService.getEntidadesDonantes(),
       ]);
       setSectores(secs);
       setItemsAyuda(items);
+      setEntidadesDonantes(donantes);
+      if (donantes && donantes.length > 0) {
+        setSelectedEntidadDonanteId(donantes[0].id_entidad_donante);
+      }
       if (secs.length > 0) {
         setSectorId(secs[0].id_sector);
         if (secs[0].latitud && secs[0].longitud) {
@@ -901,13 +936,47 @@ export const CatastrofesView: React.FC = () => {
     }
   };
 
+  const MUTUAS_EXCLUSIONES: Record<string, string[]> = {
+    'Colapso parcial de muros/paredes': ['Colapso total de muros/paredes', 'Sin daño visible'],
+    'Colapso total de muros/paredes': ['Colapso parcial de muros/paredes', 'Sin daño visible'],
+    'Colapso parcial de techo/cubierta': ['Colapso total de techo/cubierta', 'Sin daño visible'],
+    'Colapso total de techo/cubierta': ['Colapso parcial de techo/cubierta', 'Sin daño visible'],
+    'Colapso Parcial en zona de servicios': ['Colapso total en zona de servicios', 'Sin daño visible'],
+    'Colapso total en zona de servicios': ['Colapso Parcial en zona de servicios', 'Sin daño visible'],
+    'Sin daño visible': [
+      'Colapso parcial de muros/paredes',
+      'Colapso total de muros/paredes',
+      'Colapso parcial de techo/cubierta',
+      'Colapso total de techo/cubierta',
+      'Colapso Parcial en zona de servicios',
+      'Colapso total en zona de servicios',
+      'Agrietamiento/fisuras en paredes',
+      'Vivienda inclinada',
+      'Agrietamiento/fisuras en columnas o vigas',
+      'Daño en techo/cubierta (tejas movidas o rotas)',
+      'Desprendimiento de cielo raso',
+      'Daño en pisos/baldosas',
+      'Hundimiento/asentamiento de estructura',
+      'Daño/despolme fachada',
+      'Vivienda inhabitable / requiere demolición',
+      'Daño en vidrios/ventanas'
+    ]
+  };
+
   const toggleSubtipo = (nombre: string) => {
     const isCurrentlySelected = selectedSubtipos.includes(nombre);
     if (isCurrentlySelected) {
       setSelectedSubtipos((prev) => prev.filter((item) => item !== nombre));
     } else {
+      const excluidos = MUTUAS_EXCLUSIONES[nombre] || [];
+      // Si se selecciona un daño físico, remover 'Sin daño visible'
+      const autoExcluir = [...excluidos];
+      if (nombre !== 'Sin daño visible' && !autoExcluir.includes('Sin daño visible')) {
+        autoExcluir.push('Sin daño visible');
+      }
+
       setCantidadesSubtipos((prev) => ({ ...prev, [nombre]: prev[nombre] || 1 }));
-      setSelectedSubtipos((prev) => [...prev, nombre]);
+      setSelectedSubtipos((prev) => [...prev.filter((item) => !autoExcluir.includes(item)), nombre]);
     }
   };
 
@@ -1278,6 +1347,18 @@ export const CatastrofesView: React.FC = () => {
     setCostoEstimadoAyuda('0');
     setDocumentoReceptor('');
     setNombreReceptor('');
+    setFichaCatastral('');
+    setTipoTenencia('PROPIETARIO_RESIDENTE');
+    setComunidadJacNombre('');
+    setComunidadJacPersoneria('');
+    setComunidadJacRepresentante('');
+    setComunidadJacTelefono('');
+    setEsLocalComercial(false);
+    setComercioRazonSocial('');
+    setComercioNitRut('');
+    setComercioAfectacionMercancia('');
+    setInfraestructurasRurales([]);
+    setSelectedEntidadDonanteId(entidadesDonantes[0]?.id_entidad_donante || null);
   };
 
   // Funciones específicas para Limpieza de Formulario y Secciones (Modal Limpiar)
@@ -1689,12 +1770,37 @@ export const CatastrofesView: React.FC = () => {
       // Fotos (Solo fotos de la solicitud, hasta 6)
       if (detail.fotos && detail.fotos.length > 0) {
         const fotosSol = detail.fotos
-          .filter((f) => !f.id_entrega)
-          .map((f) => f.url)
+          .filter((f: any) => !f.id_entrega)
+          .map((f: any) => f.url)
           .slice(0, 6);
         setFotosEntrega(fotosSol);
       } else {
         setFotosEntrega([]);
+      }
+
+      // Nuevos campos de evolución: Tenencia, Ficha Catastral, JAC, Comercial, Rural
+      setFichaCatastral(detail.ficha_catastral || '');
+      setTipoTenencia((detail.tipo_tenencia as any) || 'PROPIETARIO_RESIDENTE');
+      setComunidadJacNombre(detail.comunidad_jac_nombre || '');
+      setComunidadJacPersoneria(detail.comunidad_jac_personeria || '');
+      setComunidadJacRepresentante(detail.comunidad_jac_representante || '');
+      setComunidadJacTelefono(detail.comunidad_jac_telefono || '');
+      setEsLocalComercial(!!detail.es_local_comercial);
+      setComercioRazonSocial(detail.comercio_razon_social || '');
+      setComercioNitRut(detail.comercio_nit_rut || '');
+      setComercioAfectacionMercancia(detail.comercio_afectacion_mercancia || '');
+      if (Array.isArray(detail.infraestructuras_rurales)) {
+        setInfraestructurasRurales(detail.infraestructuras_rurales as any);
+      } else {
+        setInfraestructurasRurales([]);
+      }
+      if (detail.evaluacion_dano) {
+        if (detail.evaluacion_dano.nivel_afectacion_paredes) {
+          setParedesDamageLevel(detail.evaluacion_dano.nivel_afectacion_paredes as any);
+        }
+        if (detail.evaluacion_dano.nivel_afectacion_pisos) {
+          setPisosDamageLevel(detail.evaluacion_dano.nivel_afectacion_pisos as any);
+        }
       }
 
       setEditingSolicitudId(detail.id_solicitud);
@@ -1767,6 +1873,17 @@ export const CatastrofesView: React.FC = () => {
           tipo_destinatario: tipoDestinatario,
           id_nucleo: idNucleoVinculado,
           nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
+          ficha_catastral: fichaCatastral.trim() || undefined,
+          tipo_tenencia: tipoTenencia,
+          comunidad_jac_nombre: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacNombre.trim() || undefined) : undefined,
+          comunidad_jac_personeria: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacPersoneria.trim() || undefined) : undefined,
+          comunidad_jac_representante: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacRepresentante.trim() || undefined) : undefined,
+          comunidad_jac_telefono: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacTelefono.trim() || undefined) : undefined,
+          es_local_comercial: tipoInmueble === 'Local comercial' || esLocalComercial,
+          comercio_razon_social: comercioRazonSocial.trim() || undefined,
+          comercio_nit_rut: comercioNitRut.trim() || undefined,
+          comercio_afectacion_mercancia: comercioAfectacionMercancia.trim() || undefined,
+          infraestructuras_rurales: infraestructurasRurales.length > 0 ? infraestructurasRurales : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1872,6 +1989,17 @@ export const CatastrofesView: React.FC = () => {
           tipo_destinatario: tipoDestinatario,
           id_nucleo: idNucleoVinculado,
           nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
+          ficha_catastral: fichaCatastral.trim() || undefined,
+          tipo_tenencia: tipoTenencia,
+          comunidad_jac_nombre: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacNombre.trim() || undefined) : undefined,
+          comunidad_jac_personeria: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacPersoneria.trim() || undefined) : undefined,
+          comunidad_jac_representante: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacRepresentante.trim() || undefined) : undefined,
+          comunidad_jac_telefono: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacTelefono.trim() || undefined) : undefined,
+          es_local_comercial: tipoInmueble === 'Local comercial' || esLocalComercial,
+          comercio_razon_social: comercioRazonSocial.trim() || undefined,
+          comercio_nit_rut: comercioNitRut.trim() || undefined,
+          comercio_afectacion_mercancia: comercioAfectacionMercancia.trim() || undefined,
+          infraestructuras_rurales: infraestructurasRurales.length > 0 ? infraestructurasRurales : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1967,6 +2095,17 @@ export const CatastrofesView: React.FC = () => {
           tipo_destinatario: tipoDestinatario,
           id_nucleo: idNucleoVinculado,
           nombre_comunidad: tipoDestinatario === 'COMUNIDAD' ? (nombreComunidad.trim() || direccion.trim() || 'Comunidad del Sector') : undefined,
+          ficha_catastral: fichaCatastral.trim() || undefined,
+          tipo_tenencia: tipoTenencia,
+          comunidad_jac_nombre: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacNombre.trim() || undefined) : undefined,
+          comunidad_jac_personeria: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacPersoneria.trim() || undefined) : undefined,
+          comunidad_jac_representante: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacRepresentante.trim() || undefined) : undefined,
+          comunidad_jac_telefono: tipoDestinatario === 'COMUNIDAD' ? (comunidadJacTelefono.trim() || undefined) : undefined,
+          es_local_comercial: tipoInmueble === 'Local comercial' || esLocalComercial,
+          comercio_razon_social: comercioRazonSocial.trim() || undefined,
+          comercio_nit_rut: comercioNitRut.trim() || undefined,
+          comercio_afectacion_mercancia: comercioAfectacionMercancia.trim() || undefined,
+          infraestructuras_rurales: infraestructurasRurales.length > 0 ? infraestructurasRurales : undefined,
           ciudadano: {
             documento: documento.trim(),
             nombres: nombres.trim(),
@@ -1984,6 +2123,8 @@ export const CatastrofesView: React.FC = () => {
           fotos_evidencia: fotosEntrega,
           fotos_entrega: fotosEntrega,
           costo_estimado_ayuda: parseFloat(costoEstimadoAyuda) || 0,
+          id_entidad_donante: selectedEntidadDonanteId || undefined,
+          costo_total_entrega: parseFloat(costoEstimadoAyuda) || undefined,
           documento_receptor: documentoReceptor.trim() || documento.trim() || undefined,
           nombre_receptor: nombreReceptor.trim() || `${nombres.trim()} ${apellidos.trim()}` || undefined,
         };
@@ -2013,6 +2154,8 @@ export const CatastrofesView: React.FC = () => {
           fotos_evidencia: fotosEntrega,
           fotos_entrega: fotosEntrega,
           costo_estimado_ayuda: parseFloat(costoEstimadoAyuda) || 0,
+          id_entidad_donante: selectedEntidadDonanteId || undefined,
+          costo_total_entrega: parseFloat(costoEstimadoAyuda) || undefined,
           documento_receptor: documentoReceptor.trim() || undefined,
           nombre_receptor: nombreReceptor.trim() || undefined,
         };
@@ -5974,9 +6117,9 @@ export const CatastrofesView: React.FC = () => {
                                 </span>
                                 <div className="text-left">
                                   <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2">
-                                    <span>3. Caracterización del Inmueble, Propietario y Estimación de Pérdidas</span>
+                                    <span>3. Tenencia, Paredes/Pisos, Ficha Catastral y Estimación de Pérdidas</span>
                                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                                      {tipoInmueble} • $ {Number(estimacionPerdidasPesos || 0).toLocaleString()} COP
+                                      {tipoInmuebleActual} • $ {Number(estimacionPerdidasPesos || 0).toLocaleString()} COP
                                     </span>
                                   </h4>
                                 </div>
@@ -5988,8 +6131,92 @@ export const CatastrofesView: React.FC = () => {
                             </button>
 
                             {isInmuebleDatosOpen && (
-                              <div className="p-4 space-y-3 bg-white border-t border-emerald-200/60">
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                              <div className="p-4 space-y-4 bg-white border-t border-emerald-200/60 text-xs">
+                                {/* 3.1 Modalidad de Tenencia del Afectado y Ficha Catastral */}
+                                <div className="space-y-2">
+                                  <div className="flex items-center justify-between">
+                                    <label className="font-extrabold text-slate-900 block text-xs">
+                                      Modalidad de Tenencia y Derechos de Asistencia *
+                                    </label>
+                                    <span className="text-[10px] text-slate-500 font-medium">
+                                      Define la tipología de ayudas y subsidios a otorgar
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                    {([
+                                      {
+                                        key: 'PROPIETARIO_RESIDENTE',
+                                        titulo: 'Propietario Residente',
+                                        sub: 'Habita el predio afectado',
+                                        badge: 'Derecho Integral',
+                                        badgeColor: 'bg-emerald-100 text-emerald-800',
+                                        desc: 'Elegible a kits de subsistencia, auxilio de arrendamiento temporal si evacúa y postulación a reconstrucción.',
+                                      },
+                                      {
+                                        key: 'ARRENDATARIO',
+                                        titulo: 'Arrendatario / Inquilino',
+                                        sub: 'Paga canon de arrendamiento',
+                                        badge: 'Subsidio Arriendo + Kits',
+                                        badgeColor: 'bg-amber-100 text-amber-900',
+                                        desc: 'Receptor directo del auxilio económico de arrendamiento temporal y kits de emergencia. No aplica reconstrucción de inmueble.',
+                                      },
+                                      {
+                                        key: 'PROPIETARIO_NO_RESIDENTE',
+                                        titulo: 'Propietario No Residente',
+                                        sub: 'Arrienda o tiene predio desocupado',
+                                        badge: 'Solo Daño Físico',
+                                        badgeColor: 'bg-blue-100 text-blue-900',
+                                        desc: 'Derecho a valoración técnica y apoyo estructural por pérdida patrimonial de vivienda. No recibe kits humanitarios de emergencia.',
+                                      },
+                                    ] as const).map((card) => {
+                                      const isSel = tipoTenencia === card.key;
+                                      return (
+                                        <div
+                                          key={card.key}
+                                          onClick={() => setTipoTenencia(card.key)}
+                                          className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                                            isSel
+                                              ? 'border-[#0071e3] bg-blue-50/50 shadow-xs ring-2 ring-[#0071e3]/15'
+                                              : 'border-slate-200 bg-white hover:border-slate-300'
+                                          }`}
+                                        >
+                                          <div>
+                                            <div className="flex items-center justify-between gap-1 mb-1">
+                                              <span className="font-extrabold text-slate-900 text-xs">{card.titulo}</span>
+                                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${card.badgeColor}`}>
+                                                {card.badge}
+                                              </span>
+                                            </div>
+                                            <span className="text-[10px] font-bold text-slate-500 block mb-1">{card.sub}</span>
+                                            <p className="text-[10px] text-slate-600 leading-tight">{card.desc}</p>
+                                          </div>
+                                          {isSel && (
+                                            <span className="text-[10px] font-bold text-[#0071e3] flex items-center gap-1 mt-1">
+                                              ✓ Seleccionado
+                                            </span>
+                                          )}
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+
+                                {/* Ficha Catastral y Enfoque de Solicitud */}
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                      Ficha Catastral / Matrícula Inmobiliaria:
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="Ej. 17042000100000025..."
+                                      value={fichaCatastral}
+                                      onChange={(e) => setFichaCatastral(e.target.value)}
+                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
+                                    />
+                                  </div>
+
                                   <div>
                                     <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
                                       Enfoque de la Solicitud:
@@ -5997,31 +6224,14 @@ export const CatastrofesView: React.FC = () => {
                                     <select
                                       value={subtipoEmergencia}
                                       onChange={(e) => setSubtipoEmergencia(e.target.value as any)}
-                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
+                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
                                     >
                                       <option value="SOCIAL_E_INMUEBLE">Social y de Inmueble (Integral)</option>
                                       <option value="INMUEBLE">Solo Inmueble / Daño Material</option>
                                       <option value="SOCIAL">Solo Asistencia Social / Familiar</option>
                                     </select>
                                   </div>
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                      Tipo de Inmueble / Bien:
-                                    </label>
-                                    <select
-                                      value={tipoInmuebleActual}
-                                      onChange={(e) => seleccionarTipoInmueble(e.target.value)}
-                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800"
-                                    >
-                                      <option value="Vivienda">Vivienda (Casa / Apartamento)</option>
-                                      <option value="Local comercial">Local comercial</option>
-                                      <option value="Vía">Vía / Carretera</option>
-                                      <option value="Colegio">Colegio / Institución Educativa</option>
-                                      <option value="Hospital">Hospital / Centro de Salud</option>
-                                      <option value="Inmueble Público">Inmueble Público</option>
-                                      <option value="Otros">Otros</option>
-                                    </select>
-                                  </div>
+
                                   <div>
                                     <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
                                       Estimación de Pérdidas ($ COP):
@@ -6029,13 +6239,303 @@ export const CatastrofesView: React.FC = () => {
                                     <input
                                       type="number"
                                       min="0"
-                                      step="10000"
+                                      step="50000"
                                       value={estimacionPerdidasPesos}
                                       onChange={(e) => setEstimacionPerdidasPesos(e.target.value)}
-                                      className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-800"
+                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 font-mono focus:bg-white"
                                     />
                                   </div>
                                 </div>
+
+                                {/* Daños Específicos en Paredes y Pisos */}
+                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
+                                  <span className="text-[11px] font-extrabold text-slate-800 uppercase block">
+                                    Evaluación Específica de Muros y Cimientos/Pisos:
+                                  </span>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Daño en Paredes / Muros Portantes:
+                                      </label>
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                          <button
+                                            key={lvl}
+                                            type="button"
+                                            onClick={() => setParedesDamageLevel(lvl)}
+                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                                              paredesDamageLevel === lvl
+                                                ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
+                                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                            }`}
+                                          >
+                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Daño en Pisos / Cimientos:
+                                      </label>
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                          <button
+                                            key={lvl}
+                                            type="button"
+                                            onClick={() => setPisosDamageLevel(lvl)}
+                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                                              pisosDamageLevel === lvl
+                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
+                                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
+                                            }`}
+                                          >
+                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+                                  </div>
+                                </div>
+
+                                {/* Formulario para Locales Comerciales */}
+                                {(tipoInmuebleActual === 'Local comercial' || esLocalComercial) && (
+                                  <div className="p-4 bg-amber-50/60 rounded-2xl border border-amber-200 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-amber-950 text-xs flex items-center gap-1.5">
+                                        <Building2 className="h-4 w-4 text-amber-700" />
+                                        <span>Caracterización del Establecimiento Comercial y Pérdidas de Mercancía</span>
+                                      </span>
+                                      <span className="text-[10px] font-bold bg-amber-200 text-amber-900 px-2 py-0.5 rounded-full">
+                                        Comercio
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          Razón Social / Nombre Comercial *
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Ej. Panadería y Abarrotes La Alsacia"
+                                          value={comercioRazonSocial}
+                                          onChange={(e) => setComercioRazonSocial(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          NIT o RUT (Opcional)
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Ej. 900.123.456-7"
+                                          value={comercioNitRut}
+                                          onChange={(e) => setComercioNitRut(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                                        />
+                                      </div>
+                                    </div>
+
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Descripción de Pérdidas de Mercancías, Enseres o Vitrinas
+                                      </label>
+                                      <textarea
+                                        rows={2}
+                                        placeholder="Pérdida de víveres por inundación, electrodomésticos dañados, vitrinas fracturadas..."
+                                        value={comercioAfectacionMercancia}
+                                        onChange={(e) => setComercioAfectacionMercancia(e.target.value)}
+                                        className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs"
+                                      />
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Formulario para Comunidad / Junta de Acción Comunal */}
+                                {tipoDestinatario === 'COMUNIDAD' && (
+                                  <div className="p-4 bg-blue-50/60 rounded-2xl border border-blue-200 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-blue-950 text-xs flex items-center gap-1.5">
+                                        <Users className="h-4 w-4 text-blue-700" />
+                                        <span>Datos de la Organización Comunal / Junta de Acción Comunal</span>
+                                      </span>
+                                      <span className="text-[10px] font-bold bg-blue-200 text-blue-900 px-2 py-0.5 rounded-full">
+                                        JAC
+                                      </span>
+                                    </div>
+
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          Nombre de la JAC o Comunidad *
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Ej. JAC Vereda Alsacia"
+                                          value={comunidadJacNombre}
+                                          onChange={(e) => setComunidadJacNombre(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          Personería Jurídica (Opcional)
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Ej. Res. 042 de 1998"
+                                          value={comunidadJacPersoneria}
+                                          onChange={(e) => setComunidadJacPersoneria(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          Presidente / Representante Comunal
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Nombre completo"
+                                          value={comunidadJacRepresentante}
+                                          onChange={(e) => setComunidadJacRepresentante(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs"
+                                        />
+                                      </div>
+
+                                      <div>
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                          Teléfono de Contacto JAC
+                                        </label>
+                                        <input
+                                          type="text"
+                                          placeholder="Ej. 312 000 0000"
+                                          value={comunidadJacTelefono}
+                                          onChange={(e) => setComunidadJacTelefono(e.target.value)}
+                                          className="w-full px-3 py-1.5 bg-white border border-slate-300 rounded-xl text-xs font-mono"
+                                        />
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* Formulario para Infraestructura Rural / Finca */}
+                                {tipoInmuebleActual === 'Finca' && (
+                                  <div className="p-4 bg-emerald-50/60 rounded-2xl border border-emerald-200 space-y-3">
+                                    <div className="flex items-center justify-between">
+                                      <span className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5">
+                                        <Leaf className="h-4 w-4 text-emerald-700" />
+                                        <span>Infraestructuras Rurales y Productivas de la Finca</span>
+                                      </span>
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setInfraestructurasRurales([
+                                            ...infraestructurasRurales,
+                                            {
+                                              tipo_infraestructura: 'Beneficiadero de café',
+                                              estado_dano: 'Grave',
+                                              observaciones: '',
+                                              costo_estimado_reparacion: 0,
+                                            },
+                                          ]);
+                                        }}
+                                        className="px-2.5 py-1 bg-emerald-700 hover:bg-emerald-800 text-white rounded-lg text-[10px] font-bold flex items-center gap-1 transition cursor-pointer"
+                                      >
+                                        <Plus className="h-3 w-3" />
+                                        <span>+ Agregar Instalación</span>
+                                      </button>
+                                    </div>
+
+                                    {infraestructurasRurales.length === 0 ? (
+                                      <p className="text-[11px] text-slate-500 italic">
+                                        No se han agregado instalaciones agropecuarias (p. ej. galpones, trapiches, cocheras, silos). Haz clic en '+ Agregar Instalación' si la finca sufrió daños productivos.
+                                      </p>
+                                    ) : (
+                                      <div className="space-y-2">
+                                        {infraestructurasRurales.map((inf, idx) => (
+                                          <div key={idx} className="p-2.5 bg-white rounded-xl border border-slate-200 grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs">
+                                            <div className="sm:col-span-4">
+                                              <label className="block text-[9px] font-bold text-slate-500 uppercase">Tipo</label>
+                                              <select
+                                                value={inf.tipo_infraestructura}
+                                                onChange={(e) => {
+                                                  const copy = [...infraestructurasRurales];
+                                                  copy[idx].tipo_infraestructura = e.target.value;
+                                                  setInfraestructurasRurales(copy);
+                                                }}
+                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                                              >
+                                                <option value="Beneficiadero de café">Beneficiadero de café</option>
+                                                <option value="Trapiche panelero">Trapiche panelero</option>
+                                                <option value="Galpón avícola">Galpón avícola</option>
+                                                <option value="Porqueriza / Cochera">Porqueriza / Cochera</option>
+                                                <option value="Establo / Corral">Establo / Corral</option>
+                                                <option value="Bodega / Cuarto de insumos">Bodega / Cuarto de insumos</option>
+                                                <option value="Secadero / Marquesina">Secadero / Marquesina</option>
+                                                <option value="Tanque de reserva / Bocatoma">Tanque de reserva / Bocatoma</option>
+                                                <option value="Otro">Otro</option>
+                                              </select>
+                                            </div>
+
+                                            <div className="sm:col-span-3">
+                                              <label className="block text-[9px] font-bold text-slate-500 uppercase">Nivel Daño</label>
+                                              <select
+                                                value={inf.estado_dano}
+                                                onChange={(e) => {
+                                                  const copy = [...infraestructurasRurales];
+                                                  copy[idx].estado_dano = e.target.value as any;
+                                                  setInfraestructurasRurales(copy);
+                                                }}
+                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-semibold"
+                                              >
+                                                <option value="Leve">Leve</option>
+                                                <option value="Parcial">Parcial</option>
+                                                <option value="Grave">Grave</option>
+                                                <option value="Colapso Total">Colapso Total</option>
+                                              </select>
+                                            </div>
+
+                                            <div className="sm:col-span-4">
+                                              <label className="block text-[9px] font-bold text-slate-500 uppercase">Costo Estimado (COP)</label>
+                                              <input
+                                                type="number"
+                                                min="0"
+                                                step="50000"
+                                                placeholder="0"
+                                                value={inf.costo_estimado_reparacion}
+                                                onChange={(e) => {
+                                                  const copy = [...infraestructurasRurales];
+                                                  copy[idx].costo_estimado_reparacion = Number(e.target.value);
+                                                  setInfraestructurasRurales(copy);
+                                                }}
+                                                className="w-full px-2 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold"
+                                              />
+                                            </div>
+
+                                            <div className="sm:col-span-1 flex justify-end">
+                                              <button
+                                                type="button"
+                                                onClick={() => {
+                                                  setInfraestructurasRurales(infraestructurasRurales.filter((_, i) => i !== idx));
+                                                }}
+                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition"
+                                                title="Eliminar fila"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
+                                            </div>
+                                          </div>
+                                        ))}
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
 
                                 <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
                                   <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
@@ -6311,9 +6811,43 @@ export const CatastrofesView: React.FC = () => {
                       />
                     </div>
 
-                    {/* Cantidad Total, Costo Estimado y Receptor cuando es Entrega Directa o Existente */}
+                    {/* Cantidad Total, Costo Estimado, Entidad Donante y Receptor cuando es Entrega Directa o Existente */}
                     {(registroModo === 'ENTREGA_DIRECTA' || registroModo === 'ENTREGA_EXISTENTE') && (
                       <div className="pt-3 border-t border-slate-200 space-y-3">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                              Entidad Donante / Origen de Fondos
+                            </label>
+                            <select
+                              value={selectedEntidadDonanteId || ''}
+                              onChange={(e) => setSelectedEntidadDonanteId(Number(e.target.value) || null)}
+                              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-blue-500 outline-none"
+                            >
+                              <option value="">-- No especificado (Fondos Municipales SAD) --</option>
+                              {entidadesDonantes.map((ed) => (
+                                <option key={ed.id_entidad_donante} value={ed.id_entidad_donante}>
+                                  {ed.nombre_entidad} ({ed.tipo_entidad})
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                              Costo Estimado de la Ayuda ($ COP)
+                            </label>
+                            <input
+                              type="number"
+                              min="0"
+                              step="5000"
+                              value={costoEstimadoAyuda}
+                              onChange={(e) => setCostoEstimadoAyuda(e.target.value)}
+                              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none font-mono"
+                            />
+                          </div>
+                        </div>
+
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           <div>
                             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
@@ -6329,19 +6863,6 @@ export const CatastrofesView: React.FC = () => {
                           </div>
                           <div>
                             <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                              Costo Estimado de la Ayuda ($ COP)
-                            </label>
-                            <input
-                              type="number"
-                              min="0"
-                              step="5000"
-                              value={costoEstimadoAyuda}
-                              onChange={(e) => setCostoEstimadoAyuda(e.target.value)}
-                              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-sm font-bold text-emerald-800 focus:ring-2 focus:ring-emerald-500 outline-none"
-                            />
-                          </div>
-                          <div>
-                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
                               Doc. Integrante Receptor
                             </label>
                             <input
@@ -6351,17 +6872,17 @@ export const CatastrofesView: React.FC = () => {
                               className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
                             />
                           </div>
-                        </div>
-                        <div>
-                          <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
-                            Nombre Completo del Integrante del Núcleo que Recibe
-                          </label>
-                          <input
-                            type="text"
-                            value={nombreReceptor}
-                            onChange={(e) => setNombreReceptor(e.target.value)}
-                            className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
-                          />
+                          <div>
+                            <label className="block text-xs font-bold text-slate-700 uppercase mb-1">
+                              Nombre Completo Receptor
+                            </label>
+                            <input
+                              type="text"
+                              value={nombreReceptor}
+                              onChange={(e) => setNombreReceptor(e.target.value)}
+                              className="w-full px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
+                            />
+                          </div>
                         </div>
                       </div>
                     )}

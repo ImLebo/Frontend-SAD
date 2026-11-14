@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import { sacService } from '../services/sacService';
 import { NavbarSAC, puedeGestionarEventosUsuario } from '../components/layout/NavbarSAC';
 import { GestionNucleosFamiliaresSAD } from '../components/nucleos/GestionNucleosFamiliaresSAD';
+import { GestionKitsYCatalogoSection } from '../components/catalogo/GestionKitsYCatalogoSection';
 import {
   ShieldAlert,
   Calendar,
@@ -27,15 +28,16 @@ import {
   Waves,
   Mountain,
   FileSpreadsheet,
-  Layers
+  Layers,
+  Package
 } from 'lucide-react';
 
 export const AdminView: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
-  // Active Admin Sub-Tab: 'eventos' | 'usuarios' | 'dashboard'
-  const [activeAdminTab, setActiveAdminTab] = useState<'eventos' | 'usuarios' | 'nucleos' | 'dashboard'>('eventos');
+  // Active Admin Sub-Tab: 'eventos' | 'usuarios' | 'nucleos' | 'kits' | 'dashboard'
+  const [activeAdminTab, setActiveAdminTab] = useState<'eventos' | 'usuarios' | 'nucleos' | 'kits' | 'dashboard'>('eventos');
 
   // Loading and Toasts
   const [loading, setLoading] = useState(false);
@@ -518,6 +520,18 @@ export const AdminView: React.FC = () => {
               <Users className="h-3.5 w-3.5" />
               <span>Núcleos Familiares (SIGA)</span>
             </button>
+            <button
+              type="button"
+              onClick={() => setActiveAdminTab('kits')}
+              className={`px-3.5 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                activeAdminTab === 'kits'
+                  ? 'bg-white text-blue-700 shadow-2xs'
+                  : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/50'
+              }`}
+            >
+              <Package className="h-3.5 w-3.5" />
+              <span>Kits y Catálogo</span>
+            </button>
           </div>
         </div>
       </div>
@@ -953,6 +967,11 @@ export const AdminView: React.FC = () => {
         {activeAdminTab === 'nucleos' && (
           <div className="py-2">
             <GestionNucleosFamiliaresSAD />
+          </div>
+        )}
+        {activeAdminTab === 'kits' && (
+          <div className="py-2">
+            <GestionKitsYCatalogoSection showToast={showToast} />
           </div>
         )}
       </main>
