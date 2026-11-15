@@ -1539,7 +1539,21 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               </div>
                             </div>
                             <div className="p-3 flex items-center justify-between text-xs">
-                              <span className="font-extrabold text-blue-900">{foto.tipo || 'Evidencia'}</span>
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
+                                foto.tipo === 'Techo_Cubierta'
+                                  ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                  : foto.tipo === 'Estructura_Muros'
+                                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                                  : 'bg-blue-100 text-blue-900 border border-blue-200'
+                              }`}>
+                                {foto.tipo === 'Techo_Cubierta'
+                                  ? '🏠 Techo / Cubierta'
+                                  : foto.tipo === 'Estructura_Muros'
+                                  ? '🏛️ Estructura / Muros'
+                                  : foto.tipo === 'Censo_General'
+                                  ? '📋 Censo General'
+                                  : (foto.tipo || 'Evidencia')}
+                              </span>
                               <span className="text-slate-500 text-[10px] font-mono">{formatFechaCorta(foto.fecha)}</span>
                             </div>
                           </div>

@@ -440,6 +440,9 @@ export const CatastrofesView: React.FC = () => {
   const [observaciones, setObservaciones] = useState('');
   const [cantidadAyuda, setCantidadAyuda] = useState<number>(1);
   const [fotosEntrega, setFotosEntrega] = useState<string[]>([]);
+  // Evidencias Fotográficas Específicas por Tipo de Afectación (Hasta 6 fotos cada una)
+  const [fotosTecho, setFotosTecho] = useState<string[]>([]);
+  const [fotosEstructura, setFotosEstructura] = useState<string[]>([]);
 
   // Filtro de Zona Urbana / Rural para Sectores & Observación del Sector
   const [sectorZoneFilter, setSectorZoneFilter] = useState<'all' | 'urbano' | 'rural'>('all');
@@ -1134,6 +1137,62 @@ export const CatastrofesView: React.FC = () => {
     setFotosEntrega((prev) => prev.filter((_, i) => i !== index));
   };
 
+  // Manejo de Fotos Específicas de Techo / Cubierta (Hasta 6 fotos)
+  const handleFotosTechoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const remainingSlots = Math.max(0, 6 - fotosTecho.length);
+      if (remainingSlots <= 0) {
+        showToast('Ya has alcanzado el límite máximo de 6 fotos para Techo / Cubierta.', 'warning');
+        return;
+      }
+      const filesToProcess = Array.from(files).slice(0, remainingSlots);
+      filesToProcess.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (reader.result) {
+            setFotosTecho((prev) => (prev.length < 6 ? [...prev, reader.result as string] : prev));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+      showToast(`${filesToProcess.length} foto(s) de techo adjuntada(s) (Máximo 6)`, 'success');
+    }
+    e.target.value = '';
+  };
+
+  const removeFotoTecho = (index: number) => {
+    setFotosTecho((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  // Manejo de Fotos Específicas de Estructura / Muros (Hasta 6 fotos)
+  const handleFotosEstructuraUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      const remainingSlots = Math.max(0, 6 - fotosEstructura.length);
+      if (remainingSlots <= 0) {
+        showToast('Ya has alcanzado el límite máximo de 6 fotos para Estructura / Muros.', 'warning');
+        return;
+      }
+      const filesToProcess = Array.from(files).slice(0, remainingSlots);
+      filesToProcess.forEach((file) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (reader.result) {
+            setFotosEstructura((prev) => (prev.length < 6 ? [...prev, reader.result as string] : prev));
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+      showToast(`${filesToProcess.length} foto(s) de estructura adjuntada(s) (Máximo 6)`, 'success');
+    }
+    e.target.value = '';
+  };
+
+  const removeFotoEstructura = (index: number) => {
+    setFotosEstructura((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const totalCantidadCalculada = useMemo(() => {
     return selectedSubtipos.reduce((acc, sub) => acc + (cantidadesSubtipos[sub] || 1), 0);
   }, [selectedSubtipos, cantidadesSubtipos]);
@@ -1418,6 +1477,8 @@ export const CatastrofesView: React.FC = () => {
     setCantidadesSubtipos({});
     setObservaciones('');
     setFotosEntrega([]);
+    setFotosTecho([]);
+    setFotosEstructura([]);
     setEvacuar(false);
     setVisita(false);
     setCenso(false);
@@ -1824,6 +1885,22 @@ export const CatastrofesView: React.FC = () => {
         if (ed.propietario_documento) setPropietarioDocumento(ed.propietario_documento);
         if (ed.propietario_telefono) setPropietarioTelefono(ed.propietario_telefono);
         if (ed.es_propietario_solicitante !== undefined) setEsPropietarioSolicitante(ed.es_propietario_solicitante);
+        
+        // Cargar fotos específicas de Techo y Estructura
+        const fotosTechoCargadas = (ed.fotos_techo && ed.fotos_techo.length > 0)
+          ? ed.fotos_techo
+          : (detail.fotos || []).filter(f => f.tipo === 'Techo_Cubierta').map(f => f.url);
+        setFotosTecho(fotosTechoCargadas || []);
+
+        const fotosEstructuraCargadas = (ed.fotos_estructura && ed.fotos_estructura.length > 0)
+          ? ed.fotos_estructura
+          : (detail.fotos || []).filter(f => f.tipo === 'Estructura_Muros').map(f => f.url);
+        setFotosEstructura(fotosEstructuraCargadas || []);
+
+        const fotosGeneralesCargadas = (detail.fotos || []).filter(f => f.tipo === 'Censo_General' || (!f.tipo && !f.id_entrega)).map(f => f.url);
+        if (fotosGeneralesCargadas.length > 0) {
+          setFotosEntrega(fotosGeneralesCargadas.slice(0, 6));
+        }
       }
 
       // RUFE
@@ -2039,10 +2116,14 @@ export const CatastrofesView: React.FC = () => {
             cuenta_red_apoyo: redApoyo,
             afectacion_infraestructura_productiva: false,
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
+            fotos_techo: fotosTecho.slice(0, 6),
+            fotos_estructura: fotosEstructura.slice(0, 6),
           },
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
           fotos_inmueble: [],
+          fotos_techo: fotosTecho.slice(0, 6),
+          fotos_estructura: fotosEstructura.slice(0, 6),
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -2155,10 +2236,14 @@ export const CatastrofesView: React.FC = () => {
             cuenta_red_apoyo: redApoyo,
             afectacion_infraestructura_productiva: false,
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
+            fotos_techo: fotosTecho.slice(0, 6),
+            fotos_estructura: fotosEstructura.slice(0, 6),
           },
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
           fotos_inmueble: [],
+          fotos_techo: fotosTecho.slice(0, 6),
+          fotos_estructura: fotosEstructura.slice(0, 6),
           formulario_rufe: {
             fecha_rufe: fechaRufe,
             corregimiento: corregimiento.trim() || undefined,
@@ -2397,6 +2482,9 @@ export const CatastrofesView: React.FC = () => {
         selectedSubtipos,
         cantidadesSubtipos,
         observaciones,
+        fotosTecho,
+        fotosEstructura,
+        fotosEntrega,
         savedAt: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
       };
       localStorage.setItem('sad_borrador_formulario_v2', JSON.stringify(draftData));
@@ -2404,6 +2492,48 @@ export const CatastrofesView: React.FC = () => {
       showToast('Borrador guardado localmente con éxito.', 'success');
     } catch {
       showToast('No se pudo guardar el borrador en este dispositivo.', 'warning');
+    }
+  };
+
+  const handleCargarBorrador = () => {
+    try {
+      const raw = localStorage.getItem('sad_borrador_formulario_v2');
+      if (!raw) {
+        showToast('No hay ningún borrador guardado en este navegador.', 'warning');
+        return;
+      }
+      const p = JSON.parse(raw);
+      if (p.selectedEventoId) setSelectedEventoId(p.selectedEventoId);
+      if (p.registroModo) setRegistroModo(p.registroModo);
+      if (p.tipoDestinatario) setTipoDestinatario(p.tipoDestinatario);
+      if (p.documento) setDocumento(p.documento);
+      if (p.nombres) setNombres(p.nombres);
+      if (p.apellidos) setApellidos(p.apellidos);
+      if (p.telefono) setTelefono(p.telefono);
+      if (p.direccion) setDireccion(p.direccion);
+      if (p.sectorId) setSectorId(p.sectorId);
+      if (p.observacionSector) setObservacionSector(p.observacionSector);
+      if (p.latitud) setLatitud(p.latitud);
+      if (p.longitud) setLongitud(p.longitud);
+      if (p.edad) setEdad(p.edad);
+      if (p.esPropietario !== undefined) setEsPropietario(p.esPropietario);
+      if (p.nucleoFamiliar) setNucleoFamiliar(p.nucleoFamiliar);
+      if (p.techoDamageLevel) setTechoDamageLevel(p.techoDamageLevel);
+      if (p.estructuraDamageLevel) setEstructuraDamageLevel(p.estructuraDamageLevel);
+      if (p.paredesDamageLevel) setParedesDamageLevel(p.paredesDamageLevel);
+      if (p.pisosDamageLevel) setPisosDamageLevel(p.pisosDamageLevel);
+      if (p.afectacionNivel) setAfectacionNivel(p.afectacionNivel);
+      if (p.observacionTecho) setObservacionTecho(p.observacionTecho);
+      if (p.observacionEstructura) setObservacionEstructura(p.observacionEstructura);
+      if (p.selectedSubtipos) setSelectedSubtipos(p.selectedSubtipos);
+      if (p.cantidadesSubtipos) setCantidadesSubtipos(p.cantidadesSubtipos);
+      if (p.observaciones) setObservaciones(p.observaciones);
+      if (p.fotosTecho) setFotosTecho(p.fotosTecho);
+      if (p.fotosEstructura) setFotosEstructura(p.fotosEstructura);
+      if (p.fotosEntrega) setFotosEntrega(p.fotosEntrega);
+      showToast(`Borrador del ${p.savedAt || ''} restaurado con éxito.`, 'success');
+    } catch {
+      showToast('Error al leer el borrador guardado.', 'error');
     }
   };
 
@@ -4591,6 +4721,18 @@ export const CatastrofesView: React.FC = () => {
                       <span>Guardar borrador</span>
                     </button>
 
+                    {borradorGuardadoHora && (
+                      <button
+                        type="button"
+                        onClick={handleCargarBorrador}
+                        className="px-3.5 py-2 rounded-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
+                        title="Restaurar formulario desde el borrador local"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5 text-emerald-600" />
+                        <span>Restaurar ({borradorGuardadoHora})</span>
+                      </button>
+                    )}
+
                     <button
                       type="button"
                       onClick={openLimpiarModal}
@@ -6181,6 +6323,55 @@ export const CatastrofesView: React.FC = () => {
                                     ))}
                                   </div>
                                 </div>
+
+                                {/* Evidencias Fotográficas de Techo / Cubierta (Hasta 6 Fotos) */}
+                                <div className="pt-3 border-t border-amber-200/60 space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <label className="text-[11px] font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                                      <Camera className="h-3.5 w-3.5 text-amber-700" />
+                                      <span>Fotos Evidencia Techo / Cubierta ({fotosTecho.length}/6)</span>
+                                    </label>
+                                    <label
+                                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-2xs transition-colors cursor-pointer ${
+                                        fotosTecho.length >= 6
+                                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                          : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900'
+                                      }`}
+                                    >
+                                      <Camera className="h-3.5 w-3.5 text-amber-700" />
+                                      <span>+ Adjuntar Fotos Techo</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        disabled={fotosTecho.length >= 6}
+                                        onChange={handleFotosTechoUpload}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  </div>
+
+                                  {fotosTecho.length > 0 && (
+                                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
+                                      {fotosTecho.map((foto, idx) => (
+                                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-amber-300 aspect-square shadow-2xs">
+                                          <img src={foto} alt={`Evidencia Techo ${idx + 1}`} className="h-full w-full object-cover" />
+                                          <button
+                                            type="button"
+                                            onClick={() => removeFotoTecho(idx)}
+                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-90 hover:opacity-100 transition shadow-xs cursor-pointer"
+                                            title="Eliminar foto"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                          <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                            #{idx + 1}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
+                                </div>
                               </div>
                             )}
                           </div>
@@ -6262,6 +6453,55 @@ export const CatastrofesView: React.FC = () => {
                                       </button>
                                     ))}
                                   </div>
+                                </div>
+
+                                {/* Evidencias Fotográficas de Estructura / Muros (Hasta 6 Fotos) */}
+                                <div className="pt-3 border-t border-rose-200/60 space-y-2">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <label className="text-[11px] font-black text-rose-950 uppercase tracking-wide flex items-center gap-1.5">
+                                      <Camera className="h-3.5 w-3.5 text-rose-700" />
+                                      <span>Fotos Evidencia Estructura / Muros ({fotosEstructura.length}/6)</span>
+                                    </label>
+                                    <label
+                                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-2xs transition-colors cursor-pointer ${
+                                        fotosEstructura.length >= 6
+                                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                          : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-900'
+                                      }`}
+                                    >
+                                      <Camera className="h-3.5 w-3.5 text-rose-700" />
+                                      <span>+ Adjuntar Fotos Estructura</span>
+                                      <input
+                                        type="file"
+                                        accept="image/*"
+                                        multiple
+                                        disabled={fotosEstructura.length >= 6}
+                                        onChange={handleFotosEstructuraUpload}
+                                        className="hidden"
+                                      />
+                                    </label>
+                                  </div>
+
+                                  {fotosEstructura.length > 0 && (
+                                    <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
+                                      {fotosEstructura.map((foto, idx) => (
+                                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-rose-300 aspect-square shadow-2xs">
+                                          <img src={foto} alt={`Evidencia Estructura ${idx + 1}`} className="h-full w-full object-cover" />
+                                          <button
+                                            type="button"
+                                            onClick={() => removeFotoEstructura(idx)}
+                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-90 hover:opacity-100 transition shadow-xs cursor-pointer"
+                                            title="Eliminar foto"
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </button>
+                                          <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                            #{idx + 1}
+                                          </span>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  )}
                                 </div>
                               </div>
                             )}

@@ -175,6 +175,8 @@ export interface VisitaTecnica {
     responsable_firma?: string;
     fecha?: string;
   };
+  fotos_techo?: string[];
+  fotos_estructura?: string[];
 }
 
 export interface SeguimientoObra {
@@ -298,6 +300,8 @@ export interface EvaluacionDanoData {
   antiguedad_anos?: string;
   tiene_ampliaciones?: boolean;
   descripcion_vivienda_previa?: string;
+  fotos_techo?: string[];
+  fotos_estructura?: string[];
 }
 
 export interface IntegranteFamiliarData {
