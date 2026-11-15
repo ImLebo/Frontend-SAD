@@ -692,21 +692,135 @@ export const CatastrofesView: React.FC = () => {
     }
   };
 
-  const actualizarNivelTecho = (level: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno') => {
-    setTechoDamageLevel(level);
-    if (!userManualDamageLevel) {
-      const maxRank = Math.max(getSeverityRank(level), getSeverityRank(estructuraDamageLevel));
-      setAfectacionNivel(getLevelFromRank(maxRank));
+  const getBotonNivelStyle = (lvl: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno', isSelected: boolean) => {
+    if (!isSelected) {
+      return 'bg-white text-slate-700 border-slate-300 hover:bg-slate-50 hover:border-slate-400';
+    }
+    switch (lvl) {
+      case 'Colapso Total':
+        return 'bg-rose-600 text-white font-extrabold border-rose-600 shadow-xs ring-2 ring-rose-300';
+      case 'Grave':
+        return 'bg-orange-500 text-white font-extrabold border-orange-500 shadow-xs ring-2 ring-orange-300';
+      case 'Leve':
+        return 'bg-amber-400 text-slate-950 font-black border-amber-400 shadow-xs ring-2 ring-amber-200';
+      case 'Ninguno':
+      default:
+        return 'bg-slate-700 text-white font-extrabold border-slate-700 shadow-xs';
     }
   };
 
-  const actualizarNivelEstructura = (level: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno') => {
-    setEstructuraDamageLevel(level);
-    if (!userManualDamageLevel) {
-      const maxRank = Math.max(getSeverityRank(techoDamageLevel), getSeverityRank(level));
-      setAfectacionNivel(getLevelFromRank(maxRank));
+  const deducirNivelTecho = (subtipos: string[]): 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' => {
+    if (subtipos.includes('Colapso total de techo/cubierta')) return 'Colapso Total';
+    if (subtipos.includes('Colapso parcial de techo/cubierta')) return 'Grave';
+    if (
+      subtipos.includes('Daño en techo/cubierta (tejas movidas o rotas)') ||
+      subtipos.includes('Desprendimiento de cielo raso') ||
+      subtipos.includes('Daño en vidrios/ventanas') ||
+      subtipos.includes('Daño en vidrios/ventanas o puertas de acceso')
+    ) {
+      return 'Leve';
     }
+    return 'Ninguno';
   };
+
+  const deducirNivelParedes = (subtipos: string[]): 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' => {
+    if (
+      subtipos.includes('Colapso total de muros/paredes') ||
+      subtipos.includes('Vivienda inhabitable / requiere demolición') ||
+      subtipos.includes('Edificación inoperativa / requiere cierre preventivo') ||
+      subtipos.includes('Pérdida total de banca / cierre vial')
+    ) {
+      return 'Colapso Total';
+    }
+    if (
+      subtipos.includes('Colapso parcial de muros/paredes') ||
+      subtipos.includes('Agrietamiento/fisuras en columnas o vigas') ||
+      subtipos.includes('Vivienda inclinada') ||
+      subtipos.includes('Colapso total en zona de servicios') ||
+      subtipos.includes('Falla o colapso de muro de contención / gaviones')
+    ) {
+      return 'Grave';
+    }
+    if (
+      subtipos.includes('Agrietamiento/fisuras en paredes') ||
+      subtipos.includes('Colapso Parcial en zona de servicios') ||
+      subtipos.includes('Daño/despolme fachada')
+    ) {
+      return 'Leve';
+    }
+    return 'Ninguno';
+  };
+
+  const deducirNivelPisos = (subtipos: string[]): 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' => {
+    const tieneHundimiento = subtipos.includes('Hundimiento/asentamiento de estructura');
+    const tieneColapsoServicios = subtipos.includes('Colapso total en zona de servicios');
+    const tieneDanoPisos = subtipos.includes('Daño en pisos/baldosas') || subtipos.includes('Daño en pisos/baldosas o zonas comunes');
+
+    if (tieneHundimiento && tieneColapsoServicios) return 'Colapso Total';
+    if (tieneHundimiento || tieneColapsoServicios) return 'Grave';
+    if (
+      tieneDanoPisos ||
+      subtipos.includes('Colapso Parcial en zona de servicios') ||
+      subtipos.includes('Agrietamiento / hundimiento de calzada')
+    ) {
+      return 'Leve';
+    }
+    return 'Ninguno';
+  };
+
+  const sincronizarDanosegunSubtipos = (subtipos: string[]) => {
+    const nuevoTecho = deducirNivelTecho(subtipos);
+    const nuevasParedes = deducirNivelParedes(subtipos);
+    const nuevosPisos = deducirNivelPisos(subtipos);
+    const nuevaEstructura = getLevelFromRank(
+      Math.max(getSeverityRank(nuevasParedes), getSeverityRank(nuevosPisos))
+    );
+
+    setTechoDamageLevel(nuevoTecho);
+    setParedesDamageLevel(nuevasParedes);
+    setPisosDamageLevel(nuevosPisos);
+    setEstructuraDamageLevel(nuevaEstructura);
+
+    // Calcular nivel global consolidado (incluyendo si requiere evacuar)
+    const maxRank = Math.max(
+      getSeverityRank(nuevoTecho),
+      getSeverityRank(nuevasParedes),
+      getSeverityRank(nuevosPisos),
+      evacuar ? 2 : 0
+    );
+    setAfectacionNivel(getLevelFromRank(maxRank));
+  };
+
+  const cambiarNivelParedesManual = (lvl: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno') => {
+    setParedesDamageLevel(lvl);
+    const maxEstructura = getLevelFromRank(Math.max(getSeverityRank(lvl), getSeverityRank(pisosDamageLevel)));
+    setEstructuraDamageLevel(maxEstructura);
+    const maxGlobal = getLevelFromRank(
+      Math.max(getSeverityRank(techoDamageLevel), getSeverityRank(lvl), getSeverityRank(pisosDamageLevel), evacuar ? 2 : 0)
+    );
+    setAfectacionNivel(maxGlobal);
+  };
+
+  const cambiarNivelPisosManual = (lvl: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno') => {
+    setPisosDamageLevel(lvl);
+    const maxEstructura = getLevelFromRank(Math.max(getSeverityRank(paredesDamageLevel), getSeverityRank(lvl)));
+    setEstructuraDamageLevel(maxEstructura);
+    const maxGlobal = getLevelFromRank(
+      Math.max(getSeverityRank(techoDamageLevel), getSeverityRank(paredesDamageLevel), getSeverityRank(lvl), evacuar ? 2 : 0)
+    );
+    setAfectacionNivel(maxGlobal);
+  };
+
+  const cambiarNivelTechoManual = (lvl: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno') => {
+    setTechoDamageLevel(lvl);
+    const maxGlobal = getLevelFromRank(
+      Math.max(getSeverityRank(lvl), getSeverityRank(paredesDamageLevel), getSeverityRank(pisosDamageLevel), evacuar ? 2 : 0)
+    );
+    setAfectacionNivel(maxGlobal);
+  };
+
+  const actualizarNivelTecho = cambiarNivelTechoManual;
+  const actualizarNivelEstructura = cambiarNivelParedesManual;
 
   const handleToggleEvacuar = () => {
     const nextVal = !evacuar;
@@ -915,23 +1029,24 @@ export const CatastrofesView: React.FC = () => {
     if (!pkg) return;
     const active = isPaqueteActivo(key);
     if (active) {
-      setSelectedSubtipos((prev) => prev.filter((item) => !pkg.items.includes(item)));
+      const next = selectedSubtipos.filter((item) => !pkg.items.includes(item));
+      setSelectedSubtipos(next);
+      sincronizarDanosegunSubtipos(next);
       showToast(`Desmarcado paquete: ${pkg.label}`, 'warning');
     } else {
-      setSelectedSubtipos((prev) => {
-        const next = [...prev];
-        pkg.items.forEach((item) => {
-          if (!next.includes(item)) next.push(item);
-        });
-        return next;
+      const next = [...selectedSubtipos];
+      pkg.items.forEach((item) => {
+        if (!next.includes(item)) next.push(item);
       });
+      setSelectedSubtipos(next);
       setCantidadesSubtipos((prev) => {
-        const next = { ...prev };
+        const cpy = { ...prev };
         pkg.items.forEach((item) => {
-          if (!next[item]) next[item] = 1;
+          if (!cpy[item]) cpy[item] = 1;
         });
-        return next;
+        return cpy;
       });
+      sincronizarDanosegunSubtipos(next);
       showToast(`Seleccionado paquete: ${pkg.label}`, 'success');
     }
   };
@@ -964,9 +1079,11 @@ export const CatastrofesView: React.FC = () => {
   };
 
   const toggleSubtipo = (nombre: string) => {
+    let nextSubtipos: string[];
     const isCurrentlySelected = selectedSubtipos.includes(nombre);
     if (isCurrentlySelected) {
-      setSelectedSubtipos((prev) => prev.filter((item) => item !== nombre));
+      nextSubtipos = selectedSubtipos.filter((item) => item !== nombre);
+      setSelectedSubtipos(nextSubtipos);
     } else {
       const excluidos = MUTUAS_EXCLUSIONES[nombre] || [];
       // Si se selecciona un daño físico, remover 'Sin daño visible'
@@ -976,8 +1093,12 @@ export const CatastrofesView: React.FC = () => {
       }
 
       setCantidadesSubtipos((prev) => ({ ...prev, [nombre]: prev[nombre] || 1 }));
-      setSelectedSubtipos((prev) => [...prev.filter((item) => !autoExcluir.includes(item)), nombre]);
+      nextSubtipos = [...selectedSubtipos.filter((item) => !autoExcluir.includes(item)), nombre];
+      setSelectedSubtipos(nextSubtipos);
     }
+
+    // Sincronizar automáticamente la evaluación de daños (Techo, Paredes, Pisos y Nivel Global)
+    sincronizarDanosegunSubtipos(nextSubtipos);
   };
 
   const handleCantidadSubtipoChange = (nombre: string, val: number) => {
@@ -6039,6 +6160,27 @@ export const CatastrofesView: React.FC = () => {
                                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none"
                                   />
                                 </div>
+
+                                <div className="pt-2.5 border-t border-amber-200/60 flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-[11px] font-extrabold text-amber-950 uppercase flex items-center gap-1.5">
+                                    <span>Nivel Específico en Techo:</span>
+                                    <span className="text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 text-[10px] font-bold">
+                                      {techoDamageLevel}
+                                    </span>
+                                  </span>
+                                  <div className="grid grid-cols-4 gap-1.5 sm:w-auto w-full">
+                                    {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                      <button
+                                        key={lvl}
+                                        type="button"
+                                        onClick={() => cambiarNivelTechoManual(lvl)}
+                                        className={`py-1 px-2.5 rounded-xl text-[10px] font-bold border transition cursor-pointer ${getBotonNivelStyle(lvl, techoDamageLevel === lvl)}`}
+                                      >
+                                        {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                               </div>
                             )}
                           </div>
@@ -6099,6 +6241,27 @@ export const CatastrofesView: React.FC = () => {
                                     onChange={(e) => setObservacionEstructura(e.target.value)}
                                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none"
                                   />
+                                </div>
+
+                                <div className="pt-2.5 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-2">
+                                  <span className="text-[11px] font-extrabold text-rose-950 uppercase flex items-center gap-1.5">
+                                    <span>Nivel en Estructura / Muros:</span>
+                                    <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 text-[10px] font-bold">
+                                      {paredesDamageLevel}
+                                    </span>
+                                  </span>
+                                  <div className="grid grid-cols-4 gap-1.5 sm:w-auto w-full">
+                                    {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                      <button
+                                        key={lvl}
+                                        type="button"
+                                        onClick={() => cambiarNivelParedesManual(lvl)}
+                                        className={`py-1 px-2.5 rounded-xl text-[10px] font-bold border transition cursor-pointer ${getBotonNivelStyle(lvl, paredesDamageLevel === lvl)}`}
+                                      >
+                                        {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                      </button>
+                                    ))}
+                                  </div>
                                 </div>
                               </div>
                             )}
@@ -6249,25 +6412,35 @@ export const CatastrofesView: React.FC = () => {
 
                                 {/* Daños Específicos en Paredes y Pisos */}
                                 <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-                                  <span className="text-[11px] font-extrabold text-slate-800 uppercase block">
-                                    Evaluación Específica de Muros y Cimientos/Pisos:
-                                  </span>
+                                  <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200 pb-2">
+                                    <span className="text-[11px] font-extrabold text-slate-800 uppercase block">
+                                      Evaluación Específica de Muros y Cimientos/Pisos:
+                                    </span>
+                                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                                      ⚡ Sincronizado automáticamente • Modificable manualmente
+                                    </span>
+                                  </div>
+
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                                     <div>
-                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                        Daño en Paredes / Muros Portantes:
-                                      </label>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">
+                                          Daño en Paredes / Muros Portantes:
+                                        </label>
+                                        <span className="text-[10px] font-extrabold text-slate-900">
+                                          {paredesDamageLevel}
+                                        </span>
+                                      </div>
                                       <div className="grid grid-cols-4 gap-1.5">
                                         {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
                                           <button
                                             key={lvl}
                                             type="button"
-                                            onClick={() => setParedesDamageLevel(lvl)}
-                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                                            onClick={() => cambiarNivelParedesManual(lvl)}
+                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${getBotonNivelStyle(
+                                              lvl,
                                               paredesDamageLevel === lvl
-                                                ? 'bg-rose-600 text-white border-rose-600 shadow-2xs'
-                                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                                            }`}
+                                            )}`}
                                           >
                                             {lvl === 'Colapso Total' ? 'Total' : lvl}
                                           </button>
@@ -6276,20 +6449,24 @@ export const CatastrofesView: React.FC = () => {
                                     </div>
 
                                     <div>
-                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                        Daño en Pisos / Cimientos:
-                                      </label>
+                                      <div className="flex items-center justify-between mb-1">
+                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">
+                                          Daño en Pisos / Cimientos:
+                                        </label>
+                                        <span className="text-[10px] font-extrabold text-slate-900">
+                                          {pisosDamageLevel}
+                                        </span>
+                                      </div>
                                       <div className="grid grid-cols-4 gap-1.5">
                                         {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
                                           <button
                                             key={lvl}
                                             type="button"
-                                            onClick={() => setPisosDamageLevel(lvl)}
-                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition ${
+                                            onClick={() => cambiarNivelPisosManual(lvl)}
+                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${getBotonNivelStyle(
+                                              lvl,
                                               pisosDamageLevel === lvl
-                                                ? 'bg-amber-600 text-white border-amber-600 shadow-2xs'
-                                                : 'bg-white text-slate-700 border-slate-300 hover:bg-slate-100'
-                                            }`}
+                                            )}`}
                                           >
                                             {lvl === 'Colapso Total' ? 'Total' : lvl}
                                           </button>
