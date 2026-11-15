@@ -6324,6 +6324,11 @@ export const CatastrofesView: React.FC = () => {
                                 <div className="text-left">
                                   <h4 className="text-xs font-extrabold text-amber-950 uppercase flex items-center gap-2">
                                     <span>{tituloPanel1}</span>
+                                    {fotosTecho.length > 0 && (
+                                      <span className="bg-amber-500/20 text-amber-900 border border-amber-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                        📸 {fotosTecho.length}/6 fotos
+                                      </span>
+                                    )}
                                   </h4>
                                 </div>
                               </div>
@@ -6390,21 +6395,26 @@ export const CatastrofesView: React.FC = () => {
                                 </div>
 
                                 {/* Evidencias Fotográficas de Techo / Cubierta (Hasta 6 Fotos) */}
-                                <div className="pt-3 border-t border-amber-200/60 space-y-2">
+                                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-amber-50 to-orange-50/70 border-2 border-dashed border-amber-300 space-y-2.5">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <label className="text-[11px] font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
-                                      <Camera className="h-3.5 w-3.5 text-amber-700" />
-                                      <span>Fotos Evidencia Techo / Cubierta ({fotosTecho.length}/6)</span>
-                                    </label>
+                                    <div>
+                                      <label className="text-xs font-black text-amber-950 uppercase tracking-wide flex items-center gap-1.5">
+                                        <Camera className="h-4 w-4 text-amber-700" />
+                                        <span>Fotos Evidencia de Techo / Cubierta ({fotosTecho.length}/6)</span>
+                                      </label>
+                                      <span className="text-[10px] text-amber-800 font-medium block">
+                                        Adjunte hasta 6 fotografías claras del daño en tejas, vigas de cubierta o cielo raso.
+                                      </span>
+                                    </div>
                                     <label
-                                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-2xs transition-colors cursor-pointer ${
+                                      className={`flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer ${
                                         fotosTecho.length >= 6
-                                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                                          : 'border-amber-300 bg-amber-50 hover:bg-amber-100 text-amber-900'
+                                          ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                          : 'bg-amber-600 hover:bg-amber-700 text-white active:scale-95'
                                       }`}
                                     >
-                                      <Camera className="h-3.5 w-3.5 text-amber-700" />
-                                      <span>+ Adjuntar Fotos Techo</span>
+                                      <Camera className="h-3.5 w-3.5 text-white" />
+                                      <span>{fotosTecho.length >= 6 ? 'Límite (6/6)' : '+ Subir Fotos Techo'}</span>
                                       <input
                                         type="file"
                                         accept="image/*"
@@ -6416,24 +6426,28 @@ export const CatastrofesView: React.FC = () => {
                                     </label>
                                   </div>
 
-                                  {fotosTecho.length > 0 && (
+                                  {fotosTecho.length > 0 ? (
                                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
                                       {fotosTecho.map((foto, idx) => (
-                                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-amber-300 aspect-square shadow-2xs">
-                                          <img src={foto} alt={`Evidencia Techo ${idx + 1}`} className="h-full w-full object-cover" />
+                                        <div key={idx} className="relative group rounded-xl overflow-hidden border-2 border-amber-400 aspect-square shadow-xs bg-slate-900">
+                                          <img src={foto} alt={`Evidencia Techo ${idx + 1}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                                           <button
                                             type="button"
                                             onClick={() => removeFotoTecho(idx)}
-                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-90 hover:opacity-100 transition shadow-xs cursor-pointer"
+                                            className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-md transition cursor-pointer"
                                             title="Eliminar foto"
                                           >
                                             <Trash2 className="h-3 w-3" />
                                           </button>
-                                          <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                          <span className="absolute bottom-1 left-1 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                                             #{idx + 1}
                                           </span>
                                         </div>
                                       ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-2 px-3 bg-white/80 rounded-xl border border-amber-200/80 text-[11px] text-amber-800">
+                                      <span>No ha subido evidencias de techo aún. Haga clic en <strong>+ Subir Fotos Techo</strong> para adjuntar (máx. 6).</span>
                                     </div>
                                   )}
                                 </div>
@@ -6455,6 +6469,11 @@ export const CatastrofesView: React.FC = () => {
                                 <div className="text-left">
                                   <h4 className="text-xs font-extrabold text-rose-950 uppercase flex items-center gap-2">
                                     <span>{tituloPanel2}</span>
+                                    {fotosEstructura.length > 0 && (
+                                      <span className="bg-rose-500/20 text-rose-900 border border-rose-300 text-[10px] font-black px-2 py-0.5 rounded-full">
+                                        📸 {fotosEstructura.length}/6 fotos
+                                      </span>
+                                    )}
                                   </h4>
                                 </div>
                               </div>
@@ -6521,21 +6540,26 @@ export const CatastrofesView: React.FC = () => {
                                 </div>
 
                                 {/* Evidencias Fotográficas de Estructura / Muros (Hasta 6 Fotos) */}
-                                <div className="pt-3 border-t border-rose-200/60 space-y-2">
+                                <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-50 to-red-50/70 border-2 border-dashed border-rose-300 space-y-2.5">
                                   <div className="flex flex-wrap items-center justify-between gap-2">
-                                    <label className="text-[11px] font-black text-rose-950 uppercase tracking-wide flex items-center gap-1.5">
-                                      <Camera className="h-3.5 w-3.5 text-rose-700" />
-                                      <span>Fotos Evidencia Estructura / Muros ({fotosEstructura.length}/6)</span>
-                                    </label>
+                                    <div>
+                                      <label className="text-xs font-black text-rose-950 uppercase tracking-wide flex items-center gap-1.5">
+                                        <Camera className="h-4 w-4 text-rose-700" />
+                                        <span>Fotos Evidencia de Estructura / Muros ({fotosEstructura.length}/6)</span>
+                                      </label>
+                                      <span className="text-[10px] text-rose-800 font-medium block">
+                                        Adjunte hasta 6 fotografías de grietas, fisuras, columnas, muros portantes o pisos.
+                                      </span>
+                                    </div>
                                     <label
-                                      className={`flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-xl border text-[11px] font-bold shadow-2xs transition-colors cursor-pointer ${
+                                      className={`flex items-center justify-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-extrabold shadow-xs transition-all cursor-pointer ${
                                         fotosEstructura.length >= 6
-                                          ? 'border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
-                                          : 'border-rose-300 bg-rose-50 hover:bg-rose-100 text-rose-900'
+                                          ? 'border border-slate-200 bg-slate-100 text-slate-400 cursor-not-allowed'
+                                          : 'bg-rose-600 hover:bg-rose-700 text-white active:scale-95'
                                       }`}
                                     >
-                                      <Camera className="h-3.5 w-3.5 text-rose-700" />
-                                      <span>+ Adjuntar Fotos Estructura</span>
+                                      <Camera className="h-3.5 w-3.5 text-white" />
+                                      <span>{fotosEstructura.length >= 6 ? 'Límite (6/6)' : '+ Subir Fotos Estructura'}</span>
                                       <input
                                         type="file"
                                         accept="image/*"
@@ -6547,24 +6571,28 @@ export const CatastrofesView: React.FC = () => {
                                     </label>
                                   </div>
 
-                                  {fotosEstructura.length > 0 && (
+                                  {fotosEstructura.length > 0 ? (
                                     <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-1">
                                       {fotosEstructura.map((foto, idx) => (
-                                        <div key={idx} className="relative group rounded-xl overflow-hidden border border-rose-300 aspect-square shadow-2xs">
-                                          <img src={foto} alt={`Evidencia Estructura ${idx + 1}`} className="h-full w-full object-cover" />
+                                        <div key={idx} className="relative group rounded-xl overflow-hidden border-2 border-rose-400 aspect-square shadow-xs bg-slate-900">
+                                          <img src={foto} alt={`Evidencia Estructura ${idx + 1}`} className="h-full w-full object-cover transition-transform group-hover:scale-105" />
                                           <button
                                             type="button"
                                             onClick={() => removeFotoEstructura(idx)}
-                                            className="absolute top-1 right-1 bg-red-600 text-white rounded-full p-1 opacity-90 hover:opacity-100 transition shadow-xs cursor-pointer"
+                                            className="absolute top-1 right-1 bg-red-600 hover:bg-red-700 text-white rounded-full p-1 shadow-md transition cursor-pointer"
                                             title="Eliminar foto"
                                           >
                                             <Trash2 className="h-3 w-3" />
                                           </button>
-                                          <span className="absolute bottom-1 left-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
+                                          <span className="absolute bottom-1 left-1 bg-black/75 text-white text-[9px] font-bold px-1.5 py-0.5 rounded">
                                             #{idx + 1}
                                           </span>
                                         </div>
                                       ))}
+                                    </div>
+                                  ) : (
+                                    <div className="text-center py-2 px-3 bg-white/80 rounded-xl border border-rose-200/80 text-[11px] text-rose-800">
+                                      <span>No ha subido evidencias de estructura aún. Haga clic en <strong>+ Subir Fotos Estructura</strong> para adjuntar (máx. 6).</span>
                                     </div>
                                   )}
                                 </div>
@@ -6715,71 +6743,7 @@ export const CatastrofesView: React.FC = () => {
                                   </div>
                                 </div>
 
-                                {/* Daños Específicos en Paredes y Pisos */}
-                                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-2.5">
-                                  <div className="flex flex-wrap items-center justify-between gap-1.5 border-b border-slate-200 pb-2">
-                                    <span className="text-[11px] font-extrabold text-slate-800 uppercase block">
-                                      Evaluación Específica de Muros y Cimientos/Pisos:
-                                    </span>
-                                    <span className="text-[10px] text-blue-700 font-bold bg-blue-50 border border-blue-200 px-2.5 py-0.5 rounded-full flex items-center gap-1">
-                                      ⚡ Sincronizado automáticamente • Modificable manualmente
-                                    </span>
-                                  </div>
 
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                    <div>
-                                      <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">
-                                          Daño en Paredes / Muros Portantes:
-                                        </label>
-                                        <span className="text-[10px] font-extrabold text-slate-900">
-                                          {paredesDamageLevel}
-                                        </span>
-                                      </div>
-                                      <div className="grid grid-cols-4 gap-1.5">
-                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
-                                          <button
-                                            key={lvl}
-                                            type="button"
-                                            onClick={() => cambiarNivelParedesManual(lvl)}
-                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${getBotonNivelStyle(
-                                              lvl,
-                                              paredesDamageLevel === lvl
-                                            )}`}
-                                          >
-                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-
-                                    <div>
-                                      <div className="flex items-center justify-between mb-1">
-                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">
-                                          Daño en Pisos / Cimientos:
-                                        </label>
-                                        <span className="text-[10px] font-extrabold text-slate-900">
-                                          {pisosDamageLevel}
-                                        </span>
-                                      </div>
-                                      <div className="grid grid-cols-4 gap-1.5">
-                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
-                                          <button
-                                            key={lvl}
-                                            type="button"
-                                            onClick={() => cambiarNivelPisosManual(lvl)}
-                                            className={`py-1.5 px-2 rounded-xl text-[11px] font-bold border transition cursor-pointer ${getBotonNivelStyle(
-                                              lvl,
-                                              pisosDamageLevel === lvl
-                                            )}`}
-                                          >
-                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
-                                          </button>
-                                        ))}
-                                      </div>
-                                    </div>
-                                  </div>
-                                </div>
 
                                 {/* Formulario para Locales Comerciales */}
                                 {(tipoInmuebleActual === 'Local comercial' || esLocalComercial) && (
