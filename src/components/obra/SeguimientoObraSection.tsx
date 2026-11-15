@@ -735,3 +735,4 @@ export const SeguimientoObraSection: React.FC<Props> = ({
     </div>
   );
 };
+

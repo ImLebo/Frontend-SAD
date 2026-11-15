@@ -1047,3 +1047,4 @@ export const VisitaTecnicaCompletaModal: React.FC<Props> = ({
     </div>
   );
 };
+
