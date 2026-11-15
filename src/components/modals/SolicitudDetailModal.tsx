@@ -36,10 +36,13 @@ import {
   Accessibility,
   ClipboardCheck,
   Plus,
-  CheckSquare
+  CheckSquare,
+  ChevronDown
 } from 'lucide-react';
 import { sacService } from '../../services/sacService';
 import { SolicitudDetailResponse } from '../../types/sac.types';
+import { VisitaTecnicaCompletaModal } from './VisitaTecnicaCompletaModal';
+import { SeguimientoObraSection } from '../obra/SeguimientoObraSection';
 
 interface Props {
   idSolicitud: number | null;
@@ -60,10 +63,11 @@ export const SolicitudDetailModal: React.FC<Props> = ({
 }) => {
   const [detail, setDetail] = useState<SolicitudDetailResponse | any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'entregas' | 'fotos'>('censo');
+  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos'>('censo');
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [copiedGps, setCopiedGps] = useState(false);
   const [copiedDoc, setCopiedDoc] = useState(false);
+  const [expandedVisitaId, setExpandedVisitaId] = useState<number | null>(null);
 
   // Visitas Técnicas de Verificación State
   const [isVisitaModalOpen, setIsVisitaModalOpen] = useState(false);
@@ -96,6 +100,19 @@ export const SolicitudDetailModal: React.FC<Props> = ({
       console.error('Error cargando información de la solicitud', err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleGuardarVisitaCompleta = async (payload: any) => {
+    setSavingVisita(true);
+    try {
+      await sacService.registrarVisitaTecnica(idSolicitud!, payload);
+      setIsVisitaModalOpen(false);
+      loadDetail();
+    } catch (err: any) {
+      alert(err.response?.data?.detail || 'Error al registrar visita técnica');
+    } finally {
+      setSavingVisita(false);
     }
   };
 
@@ -353,6 +370,19 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               >
                 <ClipboardCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'visitas' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Visitas Técnicas ({detail?.visitas_tecnicas?.length || 0})</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('obra')}
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
+                  activeTab === 'obra'
+                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
+                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
+                }`}
+              >
+                <Building2 className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'obra' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <span className="truncate">Obra y Reconstrucción</span>
               </button>
 
               <button
@@ -1289,10 +1319,78 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               <p className="text-slate-700 leading-relaxed">{vis.observaciones_tecnicas}</p>
                             </div>
                           )}
+
+                          {/* Acordeón expandible para las 10 secciones oficiales de evaluación */}
+                          <div className="pt-2 border-t border-slate-100 flex items-center justify-between">
+                            <button
+                              type="button"
+                              onClick={() => setExpandedVisitaId(expandedVisitaId === vis.id_visita ? null : vis.id_visita)}
+                              className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-1 cursor-pointer"
+                            >
+                              <span>{expandedVisitaId === vis.id_visita ? 'Ocultar dictamen oficial (10 secciones)' : 'Ver dictamen oficial completo (10 secciones de evaluación post-sismo)'}</span>
+                              <ChevronDown className={`h-4 w-4 transition-transform ${expandedVisitaId === vis.id_visita ? 'rotate-180' : ''}`} />
+                            </button>
+                            <span className="text-[10px] text-slate-400 font-mono">FR-POST-SISMO-ANSERMA</span>
+                          </div>
+
+                          {expandedVisitaId === vis.id_visita && (
+                            <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3 text-xs animate-in fade-in">
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 border-b border-slate-200 pb-2">
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase">Acceso y Condiciones:</span>
+                                  <p className="text-slate-800 font-medium">Vía: {vis.acceso_vivienda || 'Carretera'} ({vis.tiempo_acceso || '20 min'}) - {vis.condiciones_acceso || 'Buenas condiciones'}</p>
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase">Situación Hogar:</span>
+                                  <p className="text-slate-800 font-medium">{vis.permanece_en_vivienda ? 'Permanece en la vivienda' : 'Evacuado'} | Alojamiento: {vis.lugar_alojamiento_actual || 'Vivienda'} | Tenencia: {vis.soporte_tenencia || 'Escritura'}</p>
+                                </div>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-b border-slate-200 pb-2">
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase">Vivienda Previa:</span>
+                                  <p className="text-slate-800 font-medium">{vis.tipologia_vivienda || 'Unifamiliar'}, {vis.numero_pisos || 1} piso(s), {vis.area_aproximada_m2 || 0} m²</p>
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase">Materiales:</span>
+                                  <p className="text-slate-800 font-medium">Muros: {vis.material_predominante_muros || 'Mampostería'} | Techo: {vis.tipo_cubierta || 'Teja'} | Piso: {vis.tipo_piso || 'Cerámica'}</p>
+                                </div>
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase">Necesidad Inmediata:</span>
+                                  <p className="text-slate-800 font-bold text-blue-700">{vis.necesidad_inmediata || 'Reconstrucción menor'}</p>
+                                </div>
+                              </div>
+
+                              {vis.evaluacion_elementos_json && vis.evaluacion_elementos_json.length > 0 && (
+                                <div>
+                                  <span className="font-bold text-slate-600 block text-[10px] uppercase mb-1">Detalle Visual por Elemento:</span>
+                                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5 text-[11px]">
+                                    {vis.evaluacion_elementos_json.map((el: any) => (
+                                      <div key={el.elemento} className="bg-white p-1.5 rounded-lg border border-slate-200">
+                                        <span className="font-bold text-slate-700 block truncate">{el.elemento}:</span>
+                                        <span className={`font-black ${el.nivel_dano === 'Colapso' || el.nivel_dano === 'Severo' ? 'text-rose-600' : 'text-slate-800'}`}>
+                                          {el.nivel_dano} (Riesgo: {el.riesgo_inmediato})
+                                        </span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
                         </div>
                       ))
                     )}
                   </div>
+                )}
+
+                {/* ==================== PESTAÑA: SEGUIMIENTO DE OBRA Y RECONSTRUCCIÓN ==================== */}
+                {activeTab === 'obra' && (
+                  <SeguimientoObraSection
+                    idSolicitud={idSolicitud}
+                    codigoSolicitud={detail.codigo_solicitud || `SOL-${idSolicitud}`}
+                    onRefresh={loadDetail}
+                  />
                 )}
 
                 {/* ==================== PESTAÑA 5: ENTREGAS REALIZADAS ==================== */}
@@ -1456,205 +1554,14 @@ export const SolicitudDetailModal: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Modal para Registrar Visita Técnica de Verificación */}
+      {/* Modal para Registrar Visita Técnica Completa (10 Secciones Oficiales) */}
       {isVisitaModalOpen && (
-        <div className="fixed inset-0 z-[99999] bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-150">
-          <div className="bg-white rounded-3xl border border-slate-200 shadow-2xl max-w-xl w-full overflow-hidden flex flex-col max-h-[90vh]">
-            <div className="p-4 sm:p-5 border-b border-slate-100 flex items-center justify-between bg-slate-50">
-              <div className="flex items-center gap-2.5">
-                <div className="p-2 rounded-xl bg-blue-100 text-blue-700">
-                  <ClipboardCheck className="h-5 w-5" />
-                </div>
-                <div>
-                  <h3 className="font-extrabold text-sm text-slate-900">
-                    Registrar Visita Técnica de Terreno
-                  </h3>
-                  <p className="text-[11px] text-slate-500">
-                    Inspección y dictamen oficial de la UNGRD / Unidad Municipal de Gestión del Riesgo
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsVisitaModalOpen(false)}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-200 transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleGuardarVisita} className="p-5 overflow-y-auto space-y-4 text-xs">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Profesional Responsable *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={visitaForm.profesional_responsable}
-                    onChange={(e) => setVisitaForm({ ...visitaForm, profesional_responsable: e.target.value })}
-                    placeholder="Ej. Ing. Carlos Pérez"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-medium"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                    Cargo / Rol Oficial
-                  </label>
-                  <input
-                    type="text"
-                    value={visitaForm.cargo_responsable}
-                    onChange={(e) => setVisitaForm({ ...visitaForm, cargo_responsable: e.target.value })}
-                    placeholder="Ej. Técnico Gestión del Riesgo"
-                    className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-medium"
-                  />
-                </div>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Dictamen Técnico General *
-                </label>
-                <select
-                  value={visitaForm.dictamen_tecnico}
-                  onChange={(e) => setVisitaForm({ ...visitaForm, dictamen_tecnico: e.target.value })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-bold"
-                >
-                  <option value="HABITABLE">HABITABLE (Sin riesgo inminente)</option>
-                  <option value="LEVE">LEVE (Daños superficiales o reparables)</option>
-                  <option value="MODERADO">MODERADO (Requiere intervención técnica)</option>
-                  <option value="SEVERO">SEVERO (Afectación estructural grave)</option>
-                  <option value="DESHABITABLE">DESHABITABLE (No apto para habitación)</option>
-                  <option value="COLAPSO_INMINENTE">COLAPSO INMINENTE (Riesgo vital inminente)</option>
-                </select>
-              </div>
-
-              <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2">
-                <span className="text-[11px] font-bold text-slate-600 block">
-                  Afectaciones Estructurales Verificadas:
-                </span>
-                <div className="grid grid-cols-3 gap-2">
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Paredes/Muros</label>
-                    <select
-                      value={visitaForm.afectacion_muros}
-                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_muros: e.target.value })}
-                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                    >
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="Leve">Leve</option>
-                      <option value="Parcial">Parcial</option>
-                      <option value="Total">Total</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Techos/Cubierta</label>
-                    <select
-                      value={visitaForm.afectacion_techos}
-                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_techos: e.target.value })}
-                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                    >
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="Leve">Leve</option>
-                      <option value="Parcial">Parcial</option>
-                      <option value="Total">Total</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[10px] font-bold text-slate-500 mb-0.5">Pisos/Cimientos</label>
-                    <select
-                      value={visitaForm.afectacion_pisos}
-                      onChange={(e) => setVisitaForm({ ...visitaForm, afectacion_pisos: e.target.value })}
-                      className="w-full px-2 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
-                    >
-                      <option value="Ninguno">Ninguno</option>
-                      <option value="Leve">Leve</option>
-                      <option value="Parcial">Parcial</option>
-                      <option value="Total">Total</option>
-                    </select>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <label className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
-                  <input
-                    type="checkbox"
-                    checked={visitaForm.requiere_evacuacion}
-                    onChange={(e) => setVisitaForm({ ...visitaForm, requiere_evacuacion: e.target.checked })}
-                    className="h-4 w-4 rounded text-blue-600"
-                  />
-                  <div>
-                    <span className="font-bold text-slate-900 block text-[11px]">Requiere Evacuación</span>
-                    <span className="text-[10px] text-slate-500">Orden de desocupación preventiva</span>
-                  </div>
-                </label>
-
-                <label className="flex items-center gap-2 p-3 rounded-xl border border-slate-200 bg-slate-50 cursor-pointer hover:bg-slate-100 transition">
-                  <input
-                    type="checkbox"
-                    checked={visitaForm.requiere_demolicion}
-                    onChange={(e) => setVisitaForm({ ...visitaForm, requiere_demolicion: e.target.checked })}
-                    className="h-4 w-4 rounded text-rose-600"
-                  />
-                  <div>
-                    <span className="font-bold text-slate-900 block text-[11px]">Requiere Demolición</span>
-                    <span className="text-[10px] text-slate-500">Ruina o riesgo para terceros</span>
-                  </div>
-                </label>
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Costo Estimado de Daños (COP)
-                </label>
-                <input
-                  type="number"
-                  min="0"
-                  step="50000"
-                  value={visitaForm.costo_estimado_danos}
-                  onChange={(e) => setVisitaForm({ ...visitaForm, costo_estimado_danos: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 font-mono font-bold"
-                />
-              </div>
-
-              <div>
-                <label className="block text-[11px] font-bold text-slate-700 mb-1">
-                  Observaciones y Recomendaciones Técnicas
-                </label>
-                <textarea
-                  rows={3}
-                  value={visitaForm.observaciones_tecnicas}
-                  onChange={(e) => setVisitaForm({ ...visitaForm, observaciones_tecnicas: e.target.value })}
-                  placeholder="Detalles sobre grietas estructurales, riesgo de deslizamiento en talud posterior, recomendaciones de obras de mitigación..."
-                  className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl focus:bg-white focus:outline-hidden focus:border-blue-600 text-xs"
-                />
-              </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setIsVisitaModalOpen(false)}
-                  className="px-4 py-2 rounded-xl text-slate-600 hover:bg-slate-100 text-xs font-bold transition cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  disabled={savingVisita}
-                  className="px-5 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold transition shadow-xs flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                >
-                  {savingVisita ? <Loader2 className="h-4 w-4 animate-spin" /> : <ClipboardCheck className="h-4 w-4" />}
-                  <span>{savingVisita ? 'Guardando...' : 'Registrar Dictamen de Visita'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <VisitaTecnicaCompletaModal
+          idSolicitud={idSolicitud!}
+          onClose={() => setIsVisitaModalOpen(false)}
+          onSave={handleGuardarVisitaCompleta}
+          saving={savingVisita}
+        />
       )}
 
       {/* Lightbox / Visor de Fotos en Alta Resolución */}

@@ -67,6 +67,27 @@ export interface EntidadDonante {
   activo: boolean;
 }
 
+export interface ElementoEvaluadoVisual {
+  elemento: string;
+  nivel_dano: 'Sin daño' | 'Leve' | 'Moderado' | 'Severo' | 'Colapso';
+  riesgo_inmediato: 'Sí' | 'No' | 'No aplica';
+  observaciones?: string;
+}
+
+export interface CondicionTerreno {
+  condicion: string;
+  aplica: 'Sí' | 'No' | 'No aplica';
+  nivel?: 'Leve' | 'Moderado' | 'Grave' | string;
+  observaciones?: string;
+}
+
+export interface ServicioSaneamiento {
+  servicio: string;
+  estado?: string;
+  aplica: 'Sí' | 'No' | 'No aplica';
+  observaciones?: string;
+}
+
 export interface VisitaTecnica {
   id_visita?: number;
   id_solicitud?: number;
@@ -85,6 +106,143 @@ export interface VisitaTecnica {
   fotos_evidencia?: string[];
   kits_recomendados_json?: any;
   created_at?: string;
+
+  // 1. Datos Generales de la Visita y Acceso
+  hora_visita?: string;
+  acceso_vivienda?: string;
+  tiempo_acceso?: string;
+  condiciones_acceso?: string;
+
+  // 2. Hogar y Situación Actual
+  permanece_en_vivienda?: boolean;
+  lugar_alojamiento_actual?: string;
+  soporte_tenencia?: string;
+  tiene_otra_vivienda?: boolean;
+  necesidad_inmediata?: string;
+
+  // 3. Caracterización Previa de la Vivienda
+  tipologia_vivienda?: string;
+  numero_pisos?: number;
+  area_aproximada_m2?: number;
+  numero_habitaciones?: number;
+  material_predominante_muros?: string;
+  tipo_cubierta?: string;
+  tipo_piso?: string;
+  antiguedad_anos?: string;
+  tiene_ampliaciones?: boolean;
+  descripcion_vivienda_previa?: string;
+
+  // 4 a 10. Secciones estructuradas completas
+  evaluacion_elementos_json?: ElementoEvaluadoVisual[];
+  terreno_amenazas_json?: CondicionTerreno[];
+  servicios_saneamiento_json?: ServicioSaneamiento[];
+  concepto_habitabilidad_json?: {
+    clasificacion_habitabilidad?: string;
+    requiere_restriccion_ingreso?: boolean;
+    requiere_evaluacion_especializada?: string;
+    intervencion_preliminar_recomendada?: string;
+    requiere_intervencion_urgente_reduccion_riesgo?: boolean;
+    medida_urgente_recomendada?: string;
+    prioridad_atencion?: string;
+  };
+  condiciones_reconstruccion_json?: {
+    acceso_materiales_maquinaria?: boolean;
+    disponibilidad_agua?: boolean;
+    disponibilidad_energia?: boolean;
+    saneamiento_viable?: boolean;
+    requiere_movimiento_tierras?: boolean;
+    requiere_muro_contencion?: boolean;
+    requiere_manejo_aguas_lluvias?: boolean;
+    puede_apoyar_mano_obra?: boolean;
+    existe_zona_mas_segura_predio?: boolean;
+  };
+  registro_fotografico_checklist_json?: {
+    interior_vivienda?: boolean;
+    danos_estructurales?: boolean;
+    cubierta?: boolean;
+    terreno_grietas?: boolean;
+    taludes_amenazas?: boolean;
+    acceso_vivienda?: boolean;
+    servicios_saneamiento?: boolean;
+    panoramica_vivienda_entorno?: boolean;
+  };
+  concepto_tecnico_detallado_json?: {
+    principales_danos?: string;
+    riesgos_inmediatos?: string;
+    recomendacion_ocupacion?: string;
+    estudios_adicionales?: string;
+    observaciones_generales?: string;
+    responsable_firma?: string;
+    fecha?: string;
+  };
+}
+
+export interface SeguimientoObra {
+  id_obra?: number;
+  id_solicitud?: number;
+  id_visita_origen?: number;
+  codigo_obra?: string;
+  estado_obra: 'EN_PLANIFICACION' | 'EN_EJECUCION' | 'TERMINADA' | 'SUSPENDIDA' | string;
+  porcentaje_avance: number;
+  registro_inicial_json?: {
+    fotos_estado_actual?: string[];
+    foto_lote?: string;
+    foto_contador?: string;
+    foto_factura_energia?: string;
+    foto_electrica?: string;
+    foto_pozo_septico?: string;
+  };
+  revision_planos_json?: {
+    verificacion_lote?: boolean;
+    levantamiento_info?: boolean;
+    plano_arquitectonico?: boolean;
+    plano_hidraulico?: boolean;
+    plano_sanitario?: boolean;
+    plano_electrico?: boolean;
+    plano_pozo_septico?: boolean;
+    notas_planos?: string;
+  };
+  hitos_obra_json?: Array<{
+    hito: string;
+    estado: 'Pendiente' | 'En proceso' | 'Completado' | 'No aplica';
+    porcentaje?: number;
+    fecha?: string;
+    observacion?: string;
+  }>;
+  registro_cierre_json?: {
+    fotos_proceso?: string[];
+    foto_vivienda_terminada?: string;
+    foto_placa_instalada?: string;
+    acta_entrega_url?: string;
+    fecha_terminacion?: string;
+    estado_final?: string;
+    observaciones_finales?: string;
+  };
+  certificaciones_json?: {
+    autorizacion_habeas_data?: boolean;
+    certificado_retie?: boolean;
+    asociado_chec?: boolean;
+    asociado_corpocaldas?: boolean;
+    observaciones?: string;
+  };
+  dotacion_componentes_json?: {
+    cocina?: Record<string, boolean>;
+    bano?: Record<string, boolean>;
+    lavanderia?: Record<string, boolean>;
+    acabados?: Record<string, boolean>;
+    exteriores?: Record<string, boolean>;
+    instalacion_electrica?: Record<string, boolean>;
+    saneamiento?: Record<string, boolean>;
+  };
+  responsable_obra: string;
+  cargo_responsable?: string;
+  firma_responsable?: string;
+  observaciones_generales?: string;
+  fecha_inicio?: string;
+  fecha_entrega_estimada?: string;
+  fecha_entrega_real?: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 export interface InfraestructuraRural {
@@ -130,6 +288,16 @@ export interface EvaluacionDanoData {
   afectacion_infraestructura_productiva: boolean;
   descripcion_infraestructura_productiva?: string;
   observaciones_dano?: string;
+  tipologia_vivienda?: string;
+  numero_pisos?: number;
+  area_aproximada_m2?: number;
+  numero_habitaciones?: number;
+  material_predominante_muros?: string;
+  tipo_cubierta?: string;
+  tipo_piso?: string;
+  antiguedad_anos?: string;
+  tiene_ampliaciones?: boolean;
+  descripcion_vivienda_previa?: string;
 }
 
 export interface IntegranteFamiliarData {
@@ -226,8 +394,17 @@ export interface SolicitudDetailResponse {
   comercio_razon_social?: string;
   comercio_nit_rut?: string;
   comercio_afectacion_mercancia?: string;
+  acceso_vivienda?: string;
+  tiempo_acceso?: string;
+  condiciones_acceso?: string;
+  soporte_tenencia?: string;
+  permanece_en_vivienda?: boolean;
+  lugar_alojamiento_actual?: string;
+  tiene_otra_vivienda?: boolean;
+  necesidad_inmediata?: string;
   infraestructuras_rurales?: InfraestructuraRural[];
   visitas_tecnicas?: VisitaTecnica[];
+  seguimiento_obra?: SeguimientoObra[];
   ciudadano: CiudadanoData;
   sector: SectorItem;
   evaluacion_dano?: EvaluacionDanoData;

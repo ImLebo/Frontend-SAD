@@ -275,6 +275,17 @@ export const sacService = {
     return res.data;
   },
 
+  // Seguimiento de Obra y Reconstrucción
+  getSeguimientoObra: async (id_solicitud: number): Promise<any[]> => {
+    const res = await apiClient.get(`/solicitudes/${id_solicitud}/obra`);
+    return res.data;
+  },
+
+  guardarSeguimientoObra: async (id_solicitud: number, payload: any): Promise<any> => {
+    const res = await apiClient.post(`/solicitudes/${id_solicitud}/obra`, payload);
+    return res.data;
+  },
+
   // Dashboard
   getEstadisticas: async (evento_id?: number): Promise<DashboardStats> => {
     const res = await apiClient.get('/dashboard/estadisticas', {
