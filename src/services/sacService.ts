@@ -106,6 +106,11 @@ export const sacService = {
     return res.data;
   },
 
+  actualizarBancoMateriales: async (id_solicitud: number, payload: { banco_materiales_json: any[]; solicitado_por_materiales?: string }): Promise<any> => {
+    const res = await apiClient.put(`/solicitudes/${id_solicitud}/banco-materiales`, payload);
+    return res.data;
+  },
+
   // Infraestructuras Rurales en Fincas
   getInfraestructurasRurales: async (id_solicitud: number): Promise<any[]> => {
     const res = await apiClient.get(`/solicitudes/${id_solicitud}/infraestructura-rural`);

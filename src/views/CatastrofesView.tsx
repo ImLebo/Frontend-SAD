@@ -63,6 +63,8 @@ import {
   BarChart3,
   Settings,
   RefreshCw,
+  ClipboardCheck,
+  Hammer,
 } from 'lucide-react';
 import { MapContainer, Marker, Popup, TileLayer, Tooltip, useMap } from 'react-leaflet';
 import { useAuth } from '../auth/AuthContext';
@@ -71,6 +73,7 @@ import SearchableSelect from '../components/form/SearchableSelect';
 import LocationPickerModal from '../components/maps/LocationPickerModal';
 import PendingRequestPickerModal from '../components/modals/PendingRequestPickerModal';
 import { SolicitudDetailModal } from '../components/modals/SolicitudDetailModal';
+import { VisitaTecnicaCompletaModal } from '../components/modals/VisitaTecnicaCompletaModal';
 import { GestionNucleosFamiliaresSAD } from '../components/nucleos/GestionNucleosFamiliaresSAD';
 import { apiClient } from '../api/client';
 import { DISASTER_TYPOLOGIES } from '../constants/disasterTypologies';
@@ -83,8 +86,26 @@ import type {
   SolicitudMapItem,
   SolicitudDetailResponse,
   DashboardStats,
+  BancoMaterialItem,
 } from '../types/sac.types';
 import '../components/maps/RequestLocationMap.css';
+
+// Flag para habilitar/deshabilitar la pestaña de "Entrega de ayudas" en el formulario inicial de solicitud
+// Se mantiene todo el código intacto para reactivarlo en el futuro si se requiere
+const HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL = false;
+
+const MATERIALES_BANCO_DEFAULT: BancoMaterialItem[] = [
+  { material: 'Cemento - Mortero (Bultos)', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Ladrillos - Bloques de Concreto', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Madera - Listones - Guaduas', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Acero - Varillas', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Malla Electrosoldada', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Hojas de Zinc', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Tejas Fibrocemento', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Teja Arquitectonica', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Agregados (Arena / Triturado)', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+  { material: 'Perfiles Métalicos', seleccionado: false, cantidad: '', tipo: '', aprobado: false },
+];
 
 const iconMap: Record<string, any> = {
   home: Home,
@@ -131,6 +152,12 @@ export const CatastrofesView: React.FC = () => {
   const [isListarModalOpen, setIsListarModalOpen] = useState(false);
   const [listarSearchQuery, setListarSearchQuery] = useState('');
   const [listarEventoFiltro, setListarEventoFiltro] = useState<number | 'ALL'>('ALL');
+  const [listarEstadoFiltro, setListarEstadoFiltro] = useState<'all' | 'pending' | 'completed'>('all');
+  const [listarSectorFiltro, setListarSectorFiltro] = useState<number | 'ALL'>('ALL');
+  const [listarNivelDanoFiltro, setListarNivelDanoFiltro] = useState<string>('ALL');
+  const [visitaModalSolicitud, setVisitaModalSolicitud] = useState<any | null>(null);
+  const [savingVisitaDirecta, setSavingVisitaDirecta] = useState(false);
+  const [detailModalInitialTab, setDetailModalInitialTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos'>('censo');
   const [validationModal, setValidationModal] = useState<{
     isOpen: boolean;
     title: string;
@@ -444,6 +471,12 @@ export const CatastrofesView: React.FC = () => {
   const [fotosTecho, setFotosTecho] = useState<string[]>([]);
   const [fotosEstructura, setFotosEstructura] = useState<string[]>([]);
 
+  // Formato Oficial: Banco de Materiales Gobierno de Anserma (Evaluación del Inmueble)
+  const [bancoMateriales, setBancoMateriales] = useState<BancoMaterialItem[]>(() =>
+    MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m }))
+  );
+  const [solicitadoPorMateriales, setSolicitadoPorMateriales] = useState<string>('');
+
   // Filtro de Zona Urbana / Rural para Sectores & Observación del Sector
   const [sectorZoneFilter, setSectorZoneFilter] = useState<'all' | 'urbano' | 'rural'>('all');
   const [observacionSector, setObservacionSector] = useState('');
@@ -579,6 +612,18 @@ export const CatastrofesView: React.FC = () => {
       if (listarEventoFiltro !== 'ALL' && s.id_evento && s.id_evento !== listarEventoFiltro) {
         return false;
       }
+      if (listarEstadoFiltro === 'pending' && s.estado_codigo !== 'pending') {
+        return false;
+      }
+      if (listarEstadoFiltro === 'completed' && s.estado_codigo !== 'completed') {
+        return false;
+      }
+      if (listarSectorFiltro !== 'ALL' && Number(s.id_sector) !== Number(listarSectorFiltro)) {
+        return false;
+      }
+      if (listarNivelDanoFiltro !== 'ALL' && (s.afectacion_nivel || 'Ninguno') !== listarNivelDanoFiltro) {
+        return false;
+      }
       if (!q) return true;
       const doc = String(s.documento || '').toLowerCase();
       const nom = `${s.nombres || ''} ${s.apellidos || ''}`.toLowerCase();
@@ -588,7 +633,23 @@ export const CatastrofesView: React.FC = () => {
       const tel = String(s.telefono || '').toLowerCase();
       return doc.includes(q) || nom.includes(q) || cod.includes(q) || sec.includes(q) || dir.includes(q) || tel.includes(q);
     });
-  }, [todasSolicitudes, listarSearchQuery, listarEventoFiltro]);
+  }, [todasSolicitudes, listarSearchQuery, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro]);
+
+  const handleGuardarVisitaDirecta = async (payload: any) => {
+    if (!visitaModalSolicitud?.id_solicitud) return;
+    setSavingVisitaDirecta(true);
+    try {
+      const res = await sacService.registrarVisitaTecnica(visitaModalSolicitud.id_solicitud, payload);
+      showToast(res.message || `¡Visita técnica registrada exitosamente para ${visitaModalSolicitud.codigo_solicitud || `SOL-${visitaModalSolicitud.id_solicitud}`}!`, 'success');
+      setVisitaModalSolicitud(null);
+      await fetchSolicitudes();
+      loadDashboard();
+    } catch (err: any) {
+      showToast(err.response?.data?.detail || 'Error al registrar la visita técnica.', 'error');
+    } finally {
+      setSavingVisitaDirecta(false);
+    }
+  };
 
   const checkIsRuralSector = (s: { nombre_sector?: string; id_tipo_sector?: number }) => {
     if (s.id_tipo_sector === 1) return true;
@@ -1605,6 +1666,8 @@ export const CatastrofesView: React.FC = () => {
     setComercioNitRut('');
     setComercioAfectacionMercancia('');
     setInfraestructurasRurales([]);
+    setBancoMateriales(MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m })));
+    setSolicitadoPorMateriales('');
     setSelectedEntidadDonanteId(entidadesDonantes[0]?.id_entidad_donante || null);
   };
 
@@ -1665,6 +1728,8 @@ export const CatastrofesView: React.FC = () => {
     setAlbergue(false);
     setRedApoyo(false);
     setTipoInmueble('Vivienda');
+    setBancoMateriales(MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m })));
+    setSolicitadoPorMateriales('');
     showToast('Datos de afectación y atención al inmueble limpiados.', 'success');
   };
 
@@ -1720,6 +1785,9 @@ export const CatastrofesView: React.FC = () => {
     fetchSolicitudes();
     setListarSearchQuery('');
     setListarEventoFiltro('ALL');
+    setListarEstadoFiltro('all');
+    setListarSectorFiltro('ALL');
+    setListarNivelDanoFiltro('ALL');
     setIsListarModalOpen(true);
   };
 
@@ -2043,7 +2111,21 @@ export const CatastrofesView: React.FC = () => {
 
       // Nuevos campos de evolución: Tenencia, Ficha Catastral, JAC, Comercial, Rural
       setFichaCatastral(detail.ficha_catastral || '');
-      setTipoTenencia((detail.tipo_tenencia as any) || 'PROPIETARIO_RESIDENTE');
+      const loadedTenencia = detail.tipo_tenencia === 'PROPIETARIO_HABITANTE'
+        ? 'PROPIETARIO_RESIDENTE'
+        : detail.tipo_tenencia === 'PROPIETARIO_NO_HABITANTE'
+          ? 'PROPIETARIO_NO_RESIDENTE'
+          : (detail.tipo_tenencia as any) || 'PROPIETARIO_RESIDENTE';
+      setTipoTenencia(loadedTenencia);
+      if (detail.subtipo_emergencia) {
+        setSubtipoEmergencia(detail.subtipo_emergencia as any);
+      } else if (loadedTenencia === 'ARRENDATARIO') {
+        setSubtipoEmergencia('SOCIAL');
+      } else if (loadedTenencia === 'PROPIETARIO_NO_RESIDENTE') {
+        setSubtipoEmergencia('INMUEBLE');
+      } else {
+        setSubtipoEmergencia('SOCIAL_E_INMUEBLE');
+      }
       setComunidadJacNombre(detail.comunidad_jac_nombre || '');
       setComunidadJacPersoneria(detail.comunidad_jac_personeria || '');
       setComunidadJacRepresentante(detail.comunidad_jac_representante || '');
@@ -2057,6 +2139,17 @@ export const CatastrofesView: React.FC = () => {
       } else {
         setInfraestructurasRurales([]);
       }
+      const rawBm = detail.evaluacion_dano?.banco_materiales_json || detail.banco_materiales_json;
+      if (Array.isArray(rawBm) && rawBm.length > 0) {
+        setBancoMateriales(rawBm);
+      } else {
+        setBancoMateriales(MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m })));
+      }
+      setSolicitadoPorMateriales(
+        detail.evaluacion_dano?.solicitado_por_materiales ||
+        detail.solicitado_por_materiales ||
+        ''
+      );
       if (detail.evaluacion_dano) {
         if (detail.evaluacion_dano.nivel_afectacion_paredes) {
           setParedesDamageLevel(detail.evaluacion_dano.nivel_afectacion_paredes as any);
@@ -2183,7 +2276,11 @@ export const CatastrofesView: React.FC = () => {
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
             fotos_techo: fotosTecho.slice(0, 6),
             fotos_estructura: fotosEstructura.slice(0, 6),
+            banco_materiales_json: bancoMateriales,
+            solicitado_por_materiales: solicitadoPorMateriales.trim() || `${nombres.trim()} ${apellidos.trim()}`.trim() || undefined,
           },
+          banco_materiales_json: bancoMateriales,
+          solicitado_por_materiales: solicitadoPorMateriales.trim() || `${nombres.trim()} ${apellidos.trim()}`.trim() || undefined,
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
           fotos_inmueble: [],
@@ -2303,7 +2400,11 @@ export const CatastrofesView: React.FC = () => {
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
             fotos_techo: fotosTecho.slice(0, 6),
             fotos_estructura: fotosEstructura.slice(0, 6),
+            banco_materiales_json: bancoMateriales,
+            solicitado_por_materiales: solicitadoPorMateriales.trim() || `${nombres.trim()} ${apellidos.trim()}`.trim() || undefined,
           },
+          banco_materiales_json: bancoMateriales,
+          solicitado_por_materiales: solicitadoPorMateriales.trim() || `${nombres.trim()} ${apellidos.trim()}`.trim() || undefined,
           subtipo_emergencia: subtipoEmergencia,
           estimacion_perdidas_pesos: parseFloat(estimacionPerdidasPesos) || 0,
           fotos_inmueble: [],
@@ -2550,6 +2651,11 @@ export const CatastrofesView: React.FC = () => {
         fotosTecho,
         fotosEstructura,
         fotosEntrega,
+        bancoMateriales,
+        solicitadoPorMateriales,
+        fichaCatastral,
+        tipoTenencia,
+        subtipoEmergencia,
         savedAt: new Date().toLocaleTimeString('es-CO', { hour: '2-digit', minute: '2-digit' }),
       };
       localStorage.setItem('sad_borrador_formulario_v2', JSON.stringify(draftData));
@@ -2596,6 +2702,11 @@ export const CatastrofesView: React.FC = () => {
       if (p.fotosTecho) setFotosTecho(p.fotosTecho);
       if (p.fotosEstructura) setFotosEstructura(p.fotosEstructura);
       if (p.fotosEntrega) setFotosEntrega(p.fotosEntrega);
+      if (Array.isArray(p.bancoMateriales) && p.bancoMateriales.length > 0) setBancoMateriales(p.bancoMateriales);
+      if (p.solicitadoPorMateriales !== undefined) setSolicitadoPorMateriales(p.solicitadoPorMateriales);
+      if (p.fichaCatastral !== undefined) setFichaCatastral(p.fichaCatastral);
+      if (p.tipoTenencia) setTipoTenencia(p.tipoTenencia);
+      if (p.subtipoEmergencia) setSubtipoEmergencia(p.subtipoEmergencia);
       showToast(`Borrador del ${p.savedAt || ''} restaurado con éxito.`, 'success');
     } catch {
       showToast('Error al leer el borrador guardado.', 'error');
@@ -3412,51 +3523,118 @@ export const CatastrofesView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: Listar Solicitudes y Cargar al Formulario */}
+      {/* MODAL: Listar Solicitudes Unificado (Mismo del Mapa: Atender Entregas + Múltiples Visitas Técnicas + Editar) */}
       {isListarModalOpen && (
-        <div className="fixed inset-0 z-[9999] bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4 animate-in fade-in duration-200">
-          <div className="bg-white rounded-[24px] max-w-3xl w-full p-5 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.22)] border border-[#E5E5EA] flex flex-col max-h-[90vh] space-y-4">
+        <div className="fixed inset-0 z-[9999] bg-slate-950/60 backdrop-blur-xs flex items-center justify-center p-2.5 sm:p-4 animate-in fade-in duration-200">
+          <div className="bg-white rounded-[24px] max-w-5xl w-full p-4 sm:p-6 shadow-[0_25px_60px_rgba(0,0,0,0.28)] border border-[#E5E5EA] flex flex-col max-h-[92vh] space-y-3.5">
             {/* Header */}
-            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+            <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-3">
                 <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0 border border-[#007AFF]/20">
                   <List className="h-5 w-5" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-[#1D1D1F]">Listado de Solicitudes Registradas</h3>
+                  <h3 className="text-base font-extrabold text-[#1D1D1F] flex items-center gap-2">
+                    <span>Listado Operativo de Solicitudes</span>
+                    <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 text-[#007AFF] border border-blue-200">
+                      {filteredListarSolicitudes.length} de {todasSolicitudes.length}
+                    </span>
+                  </h3>
                   <p className="text-xs text-[#6E6E73]">
-                    Busca por cédula o desplázate por la lista y haz clic en una solicitud para cargarla al formulario
+                    Atienda solicitudes (crear entregas), registre una o múltiples visitas técnicas, consulte expedientes o edite el censo.
                   </p>
                 </div>
               </div>
-              <button
-                type="button"
-                onClick={() => setIsListarModalOpen(false)}
-                className="p-1 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Filter Bar */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-              <div className="relative sm:col-span-2">
-                <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
-                <input
-                  type="text"
-                  autoFocus
-                  placeholder="Buscar por cédula / documento, nombre, código SOL..."
-                  value={listarSearchQuery}
-                  onChange={(e) => setListarSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-3.5 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:bg-white focus:ring-2 focus:ring-[#007AFF] outline-none text-[#1D1D1F] transition"
-                />
-              </div>
 
               <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsListarModalOpen(false);
+                    setActiveTab('mapa');
+                  }}
+                  className="px-3 py-1.5 rounded-xl bg-blue-50 hover:bg-blue-100 text-blue-800 border border-blue-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer"
+                >
+                  <MapPin className="h-3.5 w-3.5 text-blue-600" />
+                  <span>Ver en Mapa</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setIsListarModalOpen(false)}
+                  className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+                >
+                  <X className="h-5 w-5" />
+                </button>
+              </div>
+            </div>
+
+            {/* Unified Filter Bar (Same as Map) */}
+            <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
+              <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
+                <div className="relative flex-1">
+                  <Search className="absolute left-3.5 top-2.5 h-4 w-4 text-slate-400" />
+                  <input
+                    type="text"
+                    autoFocus
+                    placeholder="Buscar por cédula, nombre, apellido, sector, dirección o SOL-ID..."
+                    value={listarSearchQuery}
+                    onChange={(e) => setListarSearchQuery(e.target.value)}
+                    className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#007AFF] outline-none text-[#1D1D1F] transition"
+                  />
+                  {listarSearchQuery && (
+                    <button
+                      type="button"
+                      onClick={() => setListarSearchQuery('')}
+                      className="absolute right-2.5 top-2.5 text-slate-400 hover:text-slate-700 cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                    </button>
+                  )}
+                </div>
+
+                {/* Quick Status Pill (Todos / Pendientes / Atendidas) */}
+                <div className="grid grid-cols-3 sm:flex items-center bg-white border border-slate-200 rounded-xl p-1 gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setListarEstadoFiltro('all')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      listarEstadoFiltro === 'all'
+                        ? 'bg-slate-900 text-white shadow-xs font-black'
+                        : 'text-slate-600 hover:text-slate-900'
+                    }`}
+                  >
+                    Todos ({todasSolicitudes.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setListarEstadoFiltro('pending')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      listarEstadoFiltro === 'pending'
+                        ? 'bg-rose-600 text-white shadow-xs font-black'
+                        : 'text-rose-700 hover:bg-rose-50'
+                    }`}
+                  >
+                    Pendientes ({solicitudesPendientes.length})
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setListarEstadoFiltro('completed')}
+                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                      listarEstadoFiltro === 'completed'
+                        ? 'bg-emerald-600 text-white shadow-xs font-black'
+                        : 'text-emerald-700 hover:bg-emerald-50'
+                    }`}
+                  >
+                    Atendidas ({Math.max(0, todasSolicitudes.length - solicitudesPendientes.length)})
+                  </button>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                 <select
                   value={listarEventoFiltro}
                   onChange={(e) => setListarEventoFiltro(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
-                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] focus:bg-white focus:ring-2 focus:ring-[#007AFF] outline-none cursor-pointer truncate"
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer truncate"
                 >
                   <option value="ALL">Todos los Eventos</option>
                   {eventos.map((ev) => (
@@ -3466,94 +3644,215 @@ export const CatastrofesView: React.FC = () => {
                   ))}
                 </select>
 
-                <button
-                  type="button"
-                  onClick={() => fetchSolicitudes()}
-                  className="p-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-600 transition cursor-pointer shrink-0"
-                  title="Actualizar listado"
+                <select
+                  value={listarSectorFiltro}
+                  onChange={(e) => setListarSectorFiltro(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer truncate"
                 >
-                  <RefreshCw className="h-4 w-4" />
-                </button>
+                  <option value="ALL">Todos los Sectores / Veredas</option>
+                  {sectores.map((sec) => (
+                    <option key={sec.id_sector} value={sec.id_sector}>
+                      {sec.nombre_sector} ({sec.tipo_sector})
+                    </option>
+                  ))}
+                </select>
+
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={listarNivelDanoFiltro}
+                    onChange={(e) => setListarNivelDanoFiltro(e.target.value)}
+                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer truncate"
+                  >
+                    <option value="ALL">Todos los Niveles de Daño</option>
+                    <option value="Colapso Total">🔴 Colapso Total / Daño Grave</option>
+                    <option value="Grave">🟠 Daño Moderado / Grave</option>
+                    <option value="Leve">🟡 Daño Leve</option>
+                    <option value="Ninguno">⚪ Sin Afectación</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => fetchSolicitudes()}
+                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition cursor-pointer shrink-0"
+                    title="Actualizar listado"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
             </div>
 
-            {/* Results Count */}
-            <div className="flex items-center justify-between text-xs text-slate-500 px-1">
-              <span>
-                Mostrando <strong>{filteredListarSolicitudes.length}</strong> solicitudes
-                {listarSearchQuery && ` para "${listarSearchQuery}"`}
-              </span>
-              <span className="text-[11px] text-[#007AFF] font-medium hidden sm:inline">
-                Haz clic en cualquier fila para cargarla al formulario
-              </span>
-            </div>
-
             {/* Scrollable Results List */}
-            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[460px]">
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[54vh]">
               {filteredListarSolicitudes.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 space-y-2">
+                <div className="py-12 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-100">
                   <FileText className="h-8 w-8 mx-auto text-slate-300" />
                   <p className="text-sm font-semibold text-slate-600">No se encontraron solicitudes</p>
                   <p className="text-xs text-slate-400">
-                    {listarSearchQuery
-                      ? 'No hay registros que coincidan con la cédula o término buscado.'
-                      : 'Aún no hay solicitudes registradas para el evento seleccionado.'}
+                    Ajusta los filtros de estado, sector, nivel de daño o búsqueda.
                   </p>
                 </div>
               ) : (
-                filteredListarSolicitudes.map((sol: any) => (
-                  <div
-                    key={sol.id_solicitud}
-                    onClick={() => handleSelectSolicitudDesdeListar(sol)}
-                    className="p-3.5 rounded-2xl border border-slate-200 bg-white hover:border-[#007AFF] hover:bg-blue-50/40 hover:shadow-md transition-all flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 cursor-pointer group"
-                  >
-                    <div className="space-y-1 min-w-0 flex-1">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="px-2 py-0.5 rounded-lg text-xs font-mono font-black bg-blue-100 text-blue-800 border border-blue-200 group-hover:bg-[#007AFF] group-hover:text-white group-hover:border-[#007AFF] transition-colors">
-                          {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
-                        </span>
-                        <span className="text-xs font-bold text-slate-900 flex items-center gap-1.5">
-                          <User className="h-3.5 w-3.5 text-slate-400" />
-                          {sol.nombres} {sol.apellidos}
-                        </span>
-                        <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-800 border border-amber-200">
-                          C.C. {sol.documento}
-                        </span>
+                filteredListarSolicitudes.map((sol: any) => {
+                  const isPending = sol.estado_codigo === 'pending';
+                  const numVisitas = sol.total_visitas ?? (sol.visita ? 1 : 0);
+                  const numEntregas = sol.total_entregas ?? (sol.tiene_entrega ? 1 : 0);
+                  return (
+                    <div
+                      key={sol.id_solicitud}
+                      className={`p-3.5 rounded-2xl border transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 hover:shadow-md ${getCardPastelStyle(sol)}`}
+                    >
+                      <div className="space-y-1.5 min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-black bg-white text-slate-900 border border-slate-200 shadow-2xs">
+                            {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                          </span>
+                          <span
+                            className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                              isPending
+                                ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                            }`}
+                          >
+                            {isPending ? 'Pendiente de Entrega' : `✓ Atendida (${numEntregas} entrega${numEntregas === 1 ? '' : 's'})`}
+                          </span>
+                          <span
+                            className={`font-black text-[10px] px-2 py-0.5 rounded-md ${
+                              sol.afectacion_nivel === 'Colapso Total'
+                                ? 'bg-rose-600 text-white'
+                                : sol.afectacion_nivel === 'Grave'
+                                  ? 'bg-amber-500 text-slate-950'
+                                  : sol.afectacion_nivel === 'Leve'
+                                    ? 'bg-slate-700 text-white'
+                                    : 'bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            Daño: {sol.afectacion_nivel || 'Sin Evaluar'}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDetailModalInitialTab('visitas');
+                              setDetailedRequestId(sol.id_solicitud);
+                              setIsDetailModalOpen(true);
+                            }}
+                            className={`text-[10px] font-black px-2 py-0.5 rounded-full border transition cursor-pointer flex items-center gap-1 ${
+                              numVisitas > 0
+                                ? 'bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200'
+                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                            }`}
+                            title="Ver historial de visitas técnicas de esta solicitud"
+                          >
+                            <ClipboardCheck className="h-3 w-3 text-indigo-600" />
+                            <span>{numVisitas} Visita{numVisitas === 1 ? '' : 's'} Técnica{numVisitas === 1 ? '' : 's'}</span>
+                          </button>
+                        </div>
+
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                            <User className="h-3.5 w-3.5 text-slate-500" />
+                            {sol.nombre_completo || `${sol.nombres || ''} ${sol.apellidos || ''}`}
+                          </strong>
+                          <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                            C.C. {sol.documento}
+                          </span>
+                          {sol.telefono && (
+                            <span className="text-[11px] text-slate-500 font-mono">
+                              📞 {sol.telefono}
+                            </span>
+                          )}
+                        </div>
+
+                        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
+                          {sol.nombre_sector && (
+                            <span className="flex items-center gap-1 font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded-lg border border-slate-200">
+                              <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                              {sol.nombre_sector}
+                            </span>
+                          )}
+                          {(sol.direccion_afectacion || sol.direccion) && (
+                            <span className="truncate max-w-[260px] text-[11px]">
+                              {sol.direccion_afectacion || sol.direccion}
+                            </span>
+                          )}
+                          {sol.fecha_solicitud && (
+                            <span className="text-[11px] font-mono text-slate-400">
+                              {sol.fecha_solicitud}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      <div className="flex items-center gap-3 text-xs text-slate-500 flex-wrap">
-                        {sol.nombre_sector && (
-                          <span className="flex items-center gap-1">
-                            <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
-                            {sol.nombre_sector}
-                          </span>
+                      {/* Botones de Acción Directa: Ver Detalle, + Visita Técnica (1 o muchas), Atender (Entrega), Editar */}
+                      <div className="shrink-0 flex flex-wrap items-center gap-1.5 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setDetailModalInitialTab('censo');
+                            setDetailedRequestId(sol.id_solicitud);
+                            setIsDetailModalOpen(true);
+                          }}
+                          className="px-2.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Ver expediente completo"
+                        >
+                          <Eye className="h-3.5 w-3.5 text-amber-300" />
+                          <span>Detalle</span>
+                        </button>
+
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setVisitaModalSolicitud(sol);
+                          }}
+                          className="px-2.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Realizar una nueva visita técnica a este inmueble (puedes registrar una o muchas visitas)"
+                        >
+                          <ClipboardCheck className="h-3.5 w-3.5" />
+                          <span>+ Visita Técnica ({numVisitas})</span>
+                        </button>
+
+                        {!isCensoOnlyUser && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedRequest(sol);
+                              setRegistroModo('ENTREGA_EXISTENTE');
+                              setActiveTab('formulario');
+                              setFormStepTab(5);
+                              setIsListarModalOpen(false);
+                              showToast(
+                                `Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para registrar entrega de ayudas.`,
+                                'success'
+                              );
+                            }}
+                            className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Atender solicitud y registrar una entrega de ayuda"
+                          >
+                            <Package className="h-3.5 w-3.5" />
+                            <span>Atender (Entrega)</span>
+                          </button>
                         )}
-                        {(sol.direccion_afectacion || sol.direccion) && (
-                          <span className="truncate max-w-[260px]">
-                            {sol.direccion_afectacion || sol.direccion}
-                          </span>
-                        )}
-                        {sol.fecha_solicitud && (
-                          <span className="text-[11px] font-mono text-slate-400">
-                            {sol.fecha_solicitud}
-                          </span>
-                        )}
+
+                        <button
+                          type="button"
+                          onClick={() => handleSelectSolicitudDesdeListar(sol)}
+                          className="px-2.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
+                          title="Cargar en el formulario para editar censo / RUFE / evaluación"
+                        >
+                          <Pencil className="h-3.5 w-3.5 text-amber-700" />
+                          <span>Editar</span>
+                        </button>
                       </div>
                     </div>
-
-                    <div className="shrink-0 flex items-center gap-2 w-full sm:w-auto justify-end">
-                      <span className="px-3 py-1.5 rounded-xl bg-slate-100 group-hover:bg-[#007AFF] text-slate-700 group-hover:text-white text-xs font-bold transition flex items-center gap-1.5 shadow-2xs">
-                        <span>Cargar</span>
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </span>
-                    </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end pt-3 border-t border-slate-100">
+            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <span className="text-[11px] text-slate-500">
+                💡 Puedes registrar <strong>una o múltiples visitas técnicas</strong> y <strong>entregas de ayudas</strong> para cada solicitud.
+              </span>
               <button
                 type="button"
                 onClick={() => setIsListarModalOpen(false)}
@@ -3564,6 +3863,26 @@ export const CatastrofesView: React.FC = () => {
             </div>
           </div>
         </div>
+      )}
+
+      {/* MODAL DIRECTO: Registrar Visita Técnica (1 a N visitas desde cualquier listado o mapa) */}
+      {visitaModalSolicitud && (
+        <VisitaTecnicaCompletaModal
+          idSolicitud={visitaModalSolicitud.id_solicitud}
+          initialData={{
+            profesional_responsable: user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() : '',
+            ciudadano_nombres: visitaModalSolicitud.nombres,
+            ciudadano_apellidos: visitaModalSolicitud.apellidos,
+            ciudadano_documento: visitaModalSolicitud.documento,
+            ciudadano_telefono: visitaModalSolicitud.telefono,
+            direccion: visitaModalSolicitud.direccion_afectacion || visitaModalSolicitud.direccion,
+            nombre_sector: visitaModalSolicitud.nombre_sector,
+            codigo_solicitud: visitaModalSolicitud.codigo_solicitud || `SOL-${visitaModalSolicitud.id_solicitud}`,
+          }}
+          onClose={() => setVisitaModalSolicitud(null)}
+          onSave={handleGuardarVisitaDirecta}
+          saving={savingVisitaDirecta}
+        />
       )}
 
       {/* MODAL: Motivos por los cuales no se envía el formulario */}
@@ -3831,9 +4150,12 @@ export const CatastrofesView: React.FC = () => {
       {isDetailModalOpen && detailedRequestId && (
         <SolicitudDetailModal
           idSolicitud={detailedRequestId}
+          initialTab={detailModalInitialTab}
           onClose={() => {
             setIsDetailModalOpen(false);
             setDetailedRequestId(null);
+            setDetailModalInitialTab('censo');
+            fetchSolicitudes();
           }}
           onEditarSolicitud={(det) => {
             handleEditarSolicitud(det);
@@ -3875,7 +4197,7 @@ export const CatastrofesView: React.FC = () => {
                 { id: 'formulario', label: 'Atención a Catástrofes', icon: Activity },
                 { id: 'nucleos', label: 'Núcleos Familiares', icon: Users },
                 { id: 'evaluaciones', label: 'Evaluaciones de Daños', icon: ShieldAlert },
-                { id: 'mapa', label: 'Mapa de Eventos', icon: MapPin, badge: todasSolicitudes.length },
+                { id: 'mapa', label: 'Listado y Mapa', icon: MapPin, badge: todasSolicitudes.length },
                 { id: 'historial', label: 'Entregas y Trazabilidad', icon: Truck },
                 { id: 'reportes', label: 'Reportes e Indicadores', icon: BarChart3 },
               ] as const).map((item) => {
@@ -3906,6 +4228,21 @@ export const CatastrofesView: React.FC = () => {
                   </button>
                 );
               })}
+
+              <button
+                type="button"
+                onClick={openListarModal}
+                className="flex items-center justify-between gap-2.5 px-3.5 py-2.5 rounded-[12px] text-xs font-bold text-[#007AFF] bg-[#007AFF]/8 hover:bg-[#007AFF]/15 border border-[#007AFF]/20 transition-all cursor-pointer shrink-0 lg:w-full mt-1"
+                title="Abrir listado rápido de solicitudes para atender entregas o realizar visitas técnicas"
+              >
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <List className="h-4 w-4 text-[#007AFF] shrink-0" />
+                  <span className="truncate">Listar Solicitudes</span>
+                </div>
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-bold bg-[#007AFF] text-white">
+                  {todasSolicitudes.length}
+                </span>
+              </button>
 
               {canManageEventos && (
                 <button
@@ -3974,6 +4311,14 @@ export const CatastrofesView: React.FC = () => {
                       <span>Nuevo Evento</span>
                     </button>
                   )}
+                  <button
+                    type="button"
+                    onClick={openListarModal}
+                    className="px-4 py-2.5 rounded-[10px] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#D2D2D7] text-xs font-semibold flex items-center gap-1.5 shadow-2xs transition cursor-pointer"
+                  >
+                    <List className="h-4 w-4 text-[#007AFF]" />
+                    <span>Listar Solicitudes ({todasSolicitudes.length})</span>
+                  </button>
                   <button
                     type="button"
                     onClick={() => {
@@ -4825,64 +5170,76 @@ export const CatastrofesView: React.FC = () => {
                   </div>
                 </div>
 
-                {/* 3-Stage Macro Stepper (Mockup 1: 1 Registro de la Solicitud | 2 Entrega de Ayudas | 3 Evidencias y Cierre) */}
-                <div className="grid grid-cols-3 border-t border-[#E5E5EA] pt-3 gap-2">
-                  {[
-                    {
-                      stage: 1,
-                      label: 'Registro de la Solicitud',
-                      active: formStepTab <= 4 && registroModo === 'SOLICITUD_SOLO',
-                      onClick: () => {
-                        if (!isEntregaOnlyUser) setRegistroModo('SOLICITUD_SOLO');
-                        setFormStepTab(1);
+                {/* Macro Stepper / Mode Banner */}
+                {(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO') && (
+                  <div className="grid grid-cols-3 border-t border-[#E5E5EA] pt-3 gap-2">
+                    {[
+                      {
+                        stage: 1,
+                        label: 'Registro de la Solicitud',
+                        active: formStepTab <= 4 && registroModo === 'SOLICITUD_SOLO',
+                        onClick: () => {
+                          if (!isEntregaOnlyUser) setRegistroModo('SOLICITUD_SOLO');
+                          setFormStepTab(1);
+                        },
                       },
-                    },
-                    {
-                      stage: 2,
-                      label: 'Entrega de Ayudas',
-                      active: formStepTab === 5 || registroModo !== 'SOLICITUD_SOLO',
-                      onClick: () => {
-                        setFormStepTab(5);
+                      {
+                        stage: 2,
+                        label: 'Entrega de Ayudas',
+                        active: formStepTab === 5 || registroModo !== 'SOLICITUD_SOLO',
+                        onClick: () => {
+                          setFormStepTab(5);
+                        },
                       },
-                    },
-                    {
-                      stage: 3,
-                      label: 'Evidencias y Cierre',
-                      active: formStepTab === 6,
-                      onClick: () => {
-                        setFormStepTab(6);
+                      {
+                        stage: 3,
+                        label: 'Evidencias y Cierre',
+                        active: formStepTab === 6,
+                        onClick: () => {
+                          setFormStepTab(6);
+                        },
                       },
-                    },
-                  ].map((st) => (
-                    <button
-                      key={st.stage}
-                      type="button"
-                      onClick={st.onClick}
-                      className={`pb-2.5 border-b-2 flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer ${st.active
-                        ? 'border-[#007AFF] text-[#1D1D1F] font-bold'
-                        : 'border-transparent text-[#6E6E73] hover:text-[#1D1D1F]'
-                        }`}
-                    >
-                      <span
-                        className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${st.active ? 'bg-[#007AFF] text-white' : 'bg-[#F5F5F7] text-[#6E6E73]'
+                    ].map((st) => (
+                      <button
+                        key={st.stage}
+                        type="button"
+                        onClick={st.onClick}
+                        className={`pb-2.5 border-b-2 flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer ${st.active
+                          ? 'border-[#007AFF] text-[#1D1D1F] font-bold'
+                          : 'border-transparent text-[#6E6E73] hover:text-[#1D1D1F]'
                           }`}
                       >
-                        {st.stage}
-                      </span>
-                      <span className="truncate">{st.label}</span>
-                    </button>
-                  ))}
-                </div>
+                        <span
+                          className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${st.active ? 'bg-[#007AFF] text-white' : 'bg-[#F5F5F7] text-[#6E6E73]'
+                            }`}
+                        >
+                          {st.stage}
+                        </span>
+                        <span className="truncate">{st.label}</span>
+                      </button>
+                    ))}
+                  </div>
+                )}
 
-                {/* 6-Tab Form Navigation Bar (Mockup 1: Datos del Evento | Núcleo Familiar | RUFE | Afectación del Inmueble | Checklist de Ayudas | Observaciones) */}
-                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA]">
+                {/* Form Navigation Bar: 4 Pestañas en Solicitud Inicial (Datos del Evento | Núcleo Familiar | RUFE | Afectación del Inmueble) */}
+                <div
+                  className={`grid gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA] ${
+                    HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO'
+                      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+                      : 'grid-cols-2 sm:grid-cols-4'
+                  }`}
+                >
                   {([
                     { step: 1, label: 'Datos del Evento', icon: User },
                     { step: 2, label: 'Núcleo Familiar', icon: Users },
                     { step: 3, label: 'RUFE', icon: FileText },
                     { step: 4, label: 'Afectación del Inmueble', icon: Home },
-                    { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
-                    { step: 6, label: 'Observaciones', icon: Camera },
+                    ...(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO'
+                      ? ([
+                          { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
+                          { step: 6, label: 'Observaciones', icon: Camera },
+                        ] as const)
+                      : []),
                   ] as const).map((tab) => {
                     const TabIcon = tab.icon;
                     const isCurrent = formStepTab === tab.step;
@@ -5039,7 +5396,7 @@ export const CatastrofesView: React.FC = () => {
                           </div>
                         </div>
                         <span className="text-[11px] font-bold text-[#0071e3] bg-blue-50 px-2.5 py-1 rounded-full">
-                          Paso 1 de 6
+                          Paso 1 de {HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ? 6 : 4}
                         </span>
                       </div>
 
@@ -5819,17 +6176,146 @@ export const CatastrofesView: React.FC = () => {
                             </div>
                           </div>
 
-                          {/* Bloque 1: Ubicación del Bien, Tenencia y Estado del Bien */}
-                          <div className="p-4 bg-white rounded-2xl border border-indigo-200/80 space-y-3">
-                            <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wide flex items-center gap-1.5 border-b border-indigo-100 pb-2">
-                              <Home className="h-4 w-4 text-indigo-600" />
-                              <span>1. Ubicación, Forma de Tenencia y Estado del Bien</span>
-                            </h3>
+                          {/* Bloque 1: Ubicación del Bien, Modalidad de Tenencia, Enfoque de Solicitud, Ficha Catastral y Estado del Bien */}
+                          <div className="p-4 bg-white rounded-2xl border border-indigo-200/80 space-y-4">
+                            <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-100 pb-2">
+                              <h3 className="text-xs font-extrabold text-indigo-950 uppercase tracking-wide flex items-center gap-1.5">
+                                <Home className="h-4 w-4 text-indigo-600" />
+                                <span>1. Ubicación, Modalidad de Tenencia, Enfoque de la Solicitud y Estado del Bien</span>
+                              </h3>
+                              <span className="text-[10px] font-bold px-2.5 py-0.5 rounded-full bg-indigo-50 text-indigo-800 border border-indigo-200">
+                                ⚡ Determina automáticamente el enfoque de la solicitud
+                              </span>
+                            </div>
 
-                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-3">
-                              <div className="sm:col-span-4">
+                            {/* Tarjetas de Modalidad de Tenencia (Propietario Residente | Arrendatario | Propietario No Residente) */}
+                            <div className="space-y-2">
+                              <div className="flex items-center justify-between flex-wrap gap-1">
+                                <label className="font-extrabold text-slate-900 block text-xs">
+                                  Modalidad de Tenencia y Derechos de Asistencia *
+                                </label>
+                                <span className="text-[10px] text-slate-500 font-medium">
+                                  Al seleccionar si es residente, arrendatario o propietario no residente se define el enfoque de la solicitud
+                                </span>
+                              </div>
+
+                              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+                                {([
+                                  {
+                                    key: 'PROPIETARIO_RESIDENTE',
+                                    titulo: 'Propietario Residente',
+                                    sub: 'Habita el predio afectado',
+                                    badge: 'Derecho Integral',
+                                    badgeColor: 'bg-emerald-100 text-emerald-800',
+                                    enfoqueLabel: 'Social y de Inmueble (Integral)',
+                                    enfoqueVal: 'SOCIAL_E_INMUEBLE' as const,
+                                    desc: 'Elegible a kits de subsistencia, auxilio de arrendamiento temporal si evacúa y postulación a reconstrucción o materiales.',
+                                  },
+                                  {
+                                    key: 'ARRENDATARIO',
+                                    titulo: 'Arrendatario / Inquilino',
+                                    sub: 'Paga canon de arrendamiento',
+                                    badge: 'Subsidio Arriendo + Kits',
+                                    badgeColor: 'bg-amber-100 text-amber-900',
+                                    enfoqueLabel: 'Solo Asistencia Social / Familiar',
+                                    enfoqueVal: 'SOCIAL' as const,
+                                    desc: 'Receptor directo del auxilio económico de arrendamiento temporal y kits de emergencia. No aplica reconstrucción de inmueble.',
+                                  },
+                                  {
+                                    key: 'PROPIETARIO_NO_RESIDENTE',
+                                    titulo: 'Propietario No Residente',
+                                    sub: 'Arrienda o tiene predio desocupado',
+                                    badge: 'Solo Daño Físico',
+                                    badgeColor: 'bg-blue-100 text-blue-900',
+                                    enfoqueLabel: 'Solo Inmueble / Daño Material',
+                                    enfoqueVal: 'INMUEBLE' as const,
+                                    desc: 'Derecho a valoración técnica y apoyo estructural/materiales por pérdida patrimonial de vivienda. No recibe kits humanitarios.',
+                                  },
+                                ] as const).map((card) => {
+                                  const isSel = tipoTenencia === card.key;
+                                  return (
+                                    <div
+                                      key={card.key}
+                                      onClick={() => {
+                                        setTipoTenencia(card.key);
+                                        setSubtipoEmergencia(card.enfoqueVal);
+                                        if (card.key === 'PROPIETARIO_RESIDENTE') {
+                                          setFormaTenenciaRufe('PROPIETARIO');
+                                          setResidenciaHabitual(true);
+                                          setEsPropietario(true);
+                                          setEsPropietarioSolicitante(true);
+                                        } else if (card.key === 'ARRENDATARIO') {
+                                          setFormaTenenciaRufe('ARRENDATARIO');
+                                          setResidenciaHabitual(true);
+                                          setEsPropietario(false);
+                                          setEsPropietarioSolicitante(false);
+                                        } else {
+                                          setFormaTenenciaRufe('PROPIETARIO');
+                                          setResidenciaHabitual(false);
+                                          setEsPropietario(true);
+                                          setEsPropietarioSolicitante(true);
+                                        }
+                                      }}
+                                      className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
+                                        isSel
+                                          ? 'border-[#0071e3] bg-blue-50/50 shadow-xs ring-2 ring-[#0071e3]/15'
+                                          : 'border-slate-200 bg-white hover:border-slate-300'
+                                      }`}
+                                    >
+                                      <div>
+                                        <div className="flex items-center justify-between gap-1 mb-1">
+                                          <span className="font-extrabold text-slate-900 text-xs">{card.titulo}</span>
+                                          <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${card.badgeColor}`}>
+                                            {card.badge}
+                                          </span>
+                                        </div>
+                                        <span className="text-[10px] font-bold text-slate-500 block mb-1">{card.sub}</span>
+                                        <p className="text-[10px] text-slate-600 leading-tight">{card.desc}</p>
+                                      </div>
+                                      <div className="pt-1.5 border-t border-slate-200/70 flex items-center justify-between text-[10px]">
+                                        <span className="font-bold text-indigo-900">Enfoque: {card.enfoqueLabel}</span>
+                                        {isSel && (
+                                          <span className="font-extrabold text-[#0071e3]">✓ Activo</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3 pt-1">
+                              <div>
                                 <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
-                                  Forma de Tenencia
+                                  Enfoque de la Solicitud *
+                                </label>
+                                <select
+                                  value={subtipoEmergencia}
+                                  onChange={(e) => setSubtipoEmergencia(e.target.value as any)}
+                                  className="w-full px-3 py-1.5 bg-indigo-50/70 border border-indigo-300 rounded-xl text-xs font-extrabold text-indigo-950 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
+                                >
+                                  <option value="SOCIAL_E_INMUEBLE">Social y de Inmueble (Integral)</option>
+                                  <option value="INMUEBLE">Solo Inmueble / Daño Material</option>
+                                  <option value="SOCIAL">Solo Asistencia Social / Familiar</option>
+                                </select>
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                                  Ficha Catastral / Matrícula:
+                                </label>
+                                <input
+                                  type="text"
+                                  placeholder="Ej. 17042000100000025..."
+                                  value={fichaCatastral}
+                                  onChange={(e) => setFichaCatastral(e.target.value)}
+                                  className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-slate-800 focus:bg-white focus:ring-2 focus:ring-indigo-500 outline-none"
+                                />
+                              </div>
+
+                              <div>
+                                <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                                  Forma de Tenencia (RUFE)
                                 </label>
                                 <select
                                   value={formaTenenciaRufe}
@@ -5844,7 +6330,7 @@ export const CatastrofesView: React.FC = () => {
                                 </select>
                               </div>
 
-                              <div className="sm:col-span-4">
+                              <div>
                                 <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
                                   Estado del Bien
                                 </label>
@@ -5861,13 +6347,16 @@ export const CatastrofesView: React.FC = () => {
                                 </select>
                               </div>
 
-                              <div className="sm:col-span-4">
+                              <div>
                                 <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
                                   Tipo de Bien Afectado
                                 </label>
                                 <select
                                   value={tipoBienRufe}
-                                  onChange={(e) => setTipoBienRufe(e.target.value)}
+                                  onChange={(e) => {
+                                    setTipoBienRufe(e.target.value);
+                                    setTipoInmueble(e.target.value);
+                                  }}
                                   className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                                 >
                                   <option value="Vivienda">VIVIENDA</option>
@@ -5886,6 +6375,54 @@ export const CatastrofesView: React.FC = () => {
                                   <option value="Estación de Policía">ESTACIÓN DE POLICÍA</option>
                                 </select>
                               </div>
+                            </div>
+
+                            {/* Datos del Propietario del Inmueble (cuando es Arrendatario o el solicitante no es el propietario) */}
+                            <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
+                              <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
+                                <input
+                                  type="checkbox"
+                                  checked={esPropietarioSolicitante}
+                                  onChange={(e) => setEsPropietarioSolicitante(e.target.checked)}
+                                  className="h-4 w-4 rounded border-slate-300 text-indigo-600"
+                                />
+                                <span>El solicitante registrado ({nombres || 'Ciudadano'}) es el propietario del inmueble</span>
+                              </label>
+
+                              {!esPropietarioSolicitante && (
+                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 uppercase">Cédula del Propietario</label>
+                                    <input
+                                      type="text"
+                                      value={propietarioDocumento}
+                                      onChange={(e) => setPropietarioDocumento(e.target.value)}
+                                      placeholder="Documento del propietario"
+                                      className="mt-0.5 w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 uppercase">Nombre Completo Propietario</label>
+                                    <input
+                                      type="text"
+                                      value={propietarioNombre}
+                                      onChange={(e) => setPropietarioNombre(e.target.value)}
+                                      placeholder="Nombres y apellidos del dueño"
+                                      className="mt-0.5 w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                  <div>
+                                    <label className="block text-[10px] font-bold text-slate-600 uppercase">Teléfono Propietario</label>
+                                    <input
+                                      type="text"
+                                      value={propietarioTelefono}
+                                      onChange={(e) => setPropietarioTelefono(e.target.value)}
+                                      placeholder="Teléfono de contacto"
+                                      className="mt-0.5 w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs"
+                                    />
+                                  </div>
+                                </div>
+                              )}
                             </div>
                           </div>
 
@@ -6600,7 +7137,7 @@ export const CatastrofesView: React.FC = () => {
                             )}
                           </div>
 
-                          {/* Panel Colapsable 3: Caracterización del Inmueble, Propietario y Estimación de Pérdidas ($ COP) */}
+                          {/* Panel Colapsable 3: Costos a Nivel de Infraestructura y Caracterización Especial */}
                           <div className="rounded-2xl border border-emerald-200 bg-emerald-50/40 overflow-hidden shadow-2xs">
                             <button
                               type="button"
@@ -6609,13 +7146,16 @@ export const CatastrofesView: React.FC = () => {
                             >
                               <div className="flex items-center gap-2">
                                 <span className="p-1.5 bg-emerald-600 text-white rounded-lg font-black text-xs">
-                                  🏡
+                                  💰
                                 </span>
                                 <div className="text-left">
-                                  <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2">
-                                    <span>3. Tenencia, Paredes/Pisos, Ficha Catastral y Estimación de Pérdidas</span>
+                                  <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2 flex-wrap">
+                                    <span>3. Costos a Nivel de Infraestructura y Caracterización del Predio</span>
                                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                                      {tipoInmuebleActual} • $ {Number(estimacionPerdidasPesos || 0).toLocaleString()} COP
+                                      {tipoInmuebleActual} • $ {(
+                                        (Number(estimacionPerdidasPesos) || 0) +
+                                        infraestructurasRurales.reduce((acc, r) => acc + (Number(r.costo_estimado_reparacion) || 0), 0)
+                                      ).toLocaleString()} COP
                                     </span>
                                   </h4>
                                 </div>
@@ -6628,118 +7168,95 @@ export const CatastrofesView: React.FC = () => {
 
                             {isInmuebleDatosOpen && (
                               <div className="p-4 space-y-4 bg-white border-t border-emerald-200/60 text-xs">
-                                {/* 3.1 Modalidad de Tenencia del Afectado y Ficha Catastral */}
-                                <div className="space-y-2">
-                                  <div className="flex items-center justify-between">
-                                    <label className="font-extrabold text-slate-900 block text-xs">
-                                      Modalidad de Tenencia y Derechos de Asistencia *
-                                    </label>
-                                    <span className="text-[10px] text-slate-500 font-medium">
-                                      Define la tipología de ayudas y subsidios a otorgar
+                                {/* Resumen de Tenencia y Enfoque determinado en RUFE */}
+                                <div className="p-3 rounded-2xl bg-indigo-50/60 border border-indigo-200 flex flex-wrap items-center justify-between gap-2">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-[11px] font-bold text-indigo-950">
+                                      Enfoque y Tenencia (definidos en RUFE):
                                     </span>
+                                    <span className="px-2.5 py-0.5 rounded-full bg-white border border-indigo-200 text-indigo-900 text-[11px] font-extrabold">
+                                      {tipoTenencia === 'PROPIETARIO_RESIDENTE'
+                                        ? 'Propietario Residente'
+                                        : tipoTenencia === 'ARRENDATARIO'
+                                          ? 'Arrendatario / Inquilino'
+                                          : 'Propietario No Residente'}
+                                    </span>
+                                    <span className="px-2.5 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-extrabold">
+                                      {subtipoEmergencia === 'SOCIAL_E_INMUEBLE'
+                                        ? 'Enfoque: Social y de Inmueble (Integral)'
+                                        : subtipoEmergencia === 'SOCIAL'
+                                          ? 'Enfoque: Solo Asistencia Social / Familiar'
+                                          : 'Enfoque: Solo Inmueble / Daño Material'}
+                                    </span>
+                                    {fichaCatastral && (
+                                      <span className="text-[11px] font-mono font-bold text-slate-600">
+                                        • Ficha: {fichaCatastral}
+                                      </span>
+                                    )}
                                   </div>
-
-                                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-                                    {([
-                                      {
-                                        key: 'PROPIETARIO_RESIDENTE',
-                                        titulo: 'Propietario Residente',
-                                        sub: 'Habita el predio afectado',
-                                        badge: 'Derecho Integral',
-                                        badgeColor: 'bg-emerald-100 text-emerald-800',
-                                        desc: 'Elegible a kits de subsistencia, auxilio de arrendamiento temporal si evacúa y postulación a reconstrucción.',
-                                      },
-                                      {
-                                        key: 'ARRENDATARIO',
-                                        titulo: 'Arrendatario / Inquilino',
-                                        sub: 'Paga canon de arrendamiento',
-                                        badge: 'Subsidio Arriendo + Kits',
-                                        badgeColor: 'bg-amber-100 text-amber-900',
-                                        desc: 'Receptor directo del auxilio económico de arrendamiento temporal y kits de emergencia. No aplica reconstrucción de inmueble.',
-                                      },
-                                      {
-                                        key: 'PROPIETARIO_NO_RESIDENTE',
-                                        titulo: 'Propietario No Residente',
-                                        sub: 'Arrienda o tiene predio desocupado',
-                                        badge: 'Solo Daño Físico',
-                                        badgeColor: 'bg-blue-100 text-blue-900',
-                                        desc: 'Derecho a valoración técnica y apoyo estructural por pérdida patrimonial de vivienda. No recibe kits humanitarios de emergencia.',
-                                      },
-                                    ] as const).map((card) => {
-                                      const isSel = tipoTenencia === card.key;
-                                      return (
-                                        <div
-                                          key={card.key}
-                                          onClick={() => setTipoTenencia(card.key)}
-                                          className={`p-3 rounded-2xl border-2 transition-all cursor-pointer flex flex-col justify-between gap-1.5 ${
-                                            isSel
-                                              ? 'border-[#0071e3] bg-blue-50/50 shadow-xs ring-2 ring-[#0071e3]/15'
-                                              : 'border-slate-200 bg-white hover:border-slate-300'
-                                          }`}
-                                        >
-                                          <div>
-                                            <div className="flex items-center justify-between gap-1 mb-1">
-                                              <span className="font-extrabold text-slate-900 text-xs">{card.titulo}</span>
-                                              <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${card.badgeColor}`}>
-                                                {card.badge}
-                                              </span>
-                                            </div>
-                                            <span className="text-[10px] font-bold text-slate-500 block mb-1">{card.sub}</span>
-                                            <p className="text-[10px] text-slate-600 leading-tight">{card.desc}</p>
-                                          </div>
-                                          {isSel && (
-                                            <span className="text-[10px] font-bold text-[#0071e3] flex items-center gap-1 mt-1">
-                                              ✓ Seleccionado
-                                            </span>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
-                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={() => setFormStepTab(3)}
+                                    className="px-2.5 py-1 rounded-lg bg-white hover:bg-indigo-100 text-indigo-700 border border-indigo-200 text-[11px] font-bold transition cursor-pointer"
+                                  >
+                                    Cambiar en RUFE →
+                                  </button>
                                 </div>
 
-                                {/* Ficha Catastral y Enfoque de Solicitud */}
-                                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                      Ficha Catastral / Matrícula Inmobiliaria:
-                                    </label>
-                                    <input
-                                      type="text"
-                                      placeholder="Ej. 17042000100000025..."
-                                      value={fichaCatastral}
-                                      onChange={(e) => setFichaCatastral(e.target.value)}
-                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold focus:bg-white focus:ring-2 focus:ring-emerald-500 outline-none"
-                                    />
+                                {/* Costos a Nivel de Infraestructura ($ COP) */}
+                                <div className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <div>
+                                      <label className="block text-xs font-black text-emerald-950 uppercase">
+                                        Estimación de Costos y Pérdidas en Infraestructura ($ COP)
+                                      </label>
+                                      <span className="text-[10px] text-emerald-800">
+                                        Valoración económica del daño estructural, cubierta, muros e instalaciones afectadas.
+                                      </span>
+                                    </div>
+                                    <div className="text-right">
+                                      <span className="text-[10px] font-bold text-emerald-700 uppercase block">Total Costo Infraestructura</span>
+                                      <span className="text-sm font-black font-mono text-emerald-950">
+                                        $ {(
+                                          (Number(estimacionPerdidasPesos) || 0) +
+                                          infraestructurasRurales.reduce((acc, r) => acc + (Number(r.costo_estimado_reparacion) || 0), 0)
+                                        ).toLocaleString('es-CO')} COP
+                                      </span>
+                                    </div>
                                   </div>
 
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                      Enfoque de la Solicitud:
-                                    </label>
-                                    <select
-                                      value={subtipoEmergencia}
-                                      onChange={(e) => setSubtipoEmergencia(e.target.value as any)}
-                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-800 focus:bg-white"
-                                    >
-                                      <option value="SOCIAL_E_INMUEBLE">Social y de Inmueble (Integral)</option>
-                                      <option value="INMUEBLE">Solo Inmueble / Daño Material</option>
-                                      <option value="SOCIAL">Solo Asistencia Social / Familiar</option>
-                                    </select>
-                                  </div>
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-end">
+                                    <div>
+                                      <label className="block text-[10px] font-bold text-slate-700 uppercase mb-1">
+                                        Costo Estimado Daño en Inmueble Principal ($ COP):
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        step="50000"
+                                        value={estimacionPerdidasPesos}
+                                        onChange={(e) => setEstimacionPerdidasPesos(e.target.value)}
+                                        className="w-full px-3.5 py-2 bg-white border border-emerald-300 rounded-xl text-xs font-extrabold text-emerald-900 font-mono focus:ring-2 focus:ring-emerald-500 outline-none"
+                                      />
+                                    </div>
 
-                                  <div>
-                                    <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
-                                      Estimación de Pérdidas ($ COP):
-                                    </label>
-                                    <input
-                                      type="number"
-                                      min="0"
-                                      step="50000"
-                                      value={estimacionPerdidasPesos}
-                                      onChange={(e) => setEstimacionPerdidasPesos(e.target.value)}
-                                      className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-emerald-800 font-mono focus:bg-white"
-                                    />
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span className="text-[10px] font-bold text-slate-500 w-full">Valores de referencia rápida:</span>
+                                      {[1000000, 3000000, 5000000, 10000000, 25000000, 50000000].map((val) => (
+                                        <button
+                                          key={val}
+                                          type="button"
+                                          onClick={() => setEstimacionPerdidasPesos(String(val))}
+                                          className={`px-2 py-1 rounded-lg text-[10px] font-mono font-bold border transition cursor-pointer ${
+                                            Number(estimacionPerdidasPesos) === val
+                                              ? 'bg-emerald-600 text-white border-emerald-600'
+                                              : 'bg-white text-emerald-900 border-emerald-200 hover:bg-emerald-100'
+                                          }`}
+                                        >
+                                          ${(val / 1000000).toFixed(0)}M
+                                        </button>
+                                      ))}
+                                    </div>
                                   </div>
                                 </div>
 
@@ -7041,65 +7558,286 @@ export const CatastrofesView: React.FC = () => {
                                     )}
                                   </div>
                                 )}
-
-                                <div className="p-3 rounded-xl border border-slate-200 bg-slate-50 space-y-2">
-                                  <label className="flex items-center gap-2 text-xs font-bold text-slate-800 cursor-pointer">
-                                    <input
-                                      type="checkbox"
-                                      checked={esPropietarioSolicitante}
-                                      onChange={(e) => setEsPropietarioSolicitante(e.target.checked)}
-                                      className="h-4 w-4 rounded border-slate-300 text-emerald-600"
-                                    />
-                                    <span>El solicitante registrado ({nombres || 'Ciudadano'}) es el propietario del inmueble</span>
-                                  </label>
-
-                                  {!esPropietarioSolicitante && (
-                                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 pt-1">
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">Cédula del Propietario</label>
-                                        <input
-                                          type="text"
-                                          value={propietarioDocumento}
-                                          onChange={(e) => setPropietarioDocumento(e.target.value)}
-                                          className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">Nombre Completo Propietario</label>
-                                        <input
-                                          type="text"
-                                          value={propietarioNombre}
-                                          onChange={(e) => setPropietarioNombre(e.target.value)}
-                                          className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
-                                        />
-                                      </div>
-                                      <div>
-                                        <label className="block text-[10px] font-bold text-slate-600 uppercase">Teléfono Propietario</label>
-                                        <input
-                                          type="text"
-                                          value={propietarioTelefono}
-                                          onChange={(e) => setPropietarioTelefono(e.target.value)}
-                                          className="mt-0.5 w-full px-2.5 py-1 bg-white border border-slate-300 rounded-lg text-xs"
-                                        />
-                                      </div>
-                                    </div>
-                                  )}
-                                </div>
                               </div>
                             )}
                           </div>
+
+                          {/* ==================== SECCIÓN FINAL EVALUACIÓN DEL INMUEBLE: BANCO DE MATERIALES GOBIERNO DE ANSERMA ==================== */}
+                          <div className="rounded-3xl border-2 border-slate-900 bg-white overflow-hidden shadow-sm">
+                            {/* Encabezado Oficial Formato Banco de Materiales */}
+                            <div className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 border-b-2 border-slate-900">
+                              <div className="flex items-center gap-2.5">
+                                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black">
+                                  <Hammer className="h-4 w-4" />
+                                </div>
+                                <div>
+                                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider">
+                                    BANCO DE MATERIALES GOBIERNO DE ANSERMA
+                                  </h4>
+                                  <p className="text-[11px] text-slate-300">
+                                    Checklist y requerimiento técnico de materiales para recuperación de vivienda / infraestructura
+                                  </p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-extrabold">
+                                  {bancoMateriales.filter((m) => m.seleccionado || Number(m.cantidad) > 0).length} materiales solicitados
+                                </span>
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold">
+                                  {bancoMateriales.filter((m) => m.aprobado).length} aprobados
+                                </span>
+                              </div>
+                            </div>
+
+                            <div className="p-4 sm:p-5 space-y-5 bg-white">
+                              {/* Cabecera de Datos del Solicitante estilo Formato Oficial */}
+                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
+                                <div className="sm:col-span-4">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    NOMBRES
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {nombres || <span className="text-slate-400 font-normal">Se autocompleta de Datos del Evento</span>}
+                                  </div>
+                                </div>
+                                <div className="sm:col-span-5">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    APELLIDOS
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {apellidos || <span className="text-slate-400 font-normal">Se autocompleta de Datos del Evento</span>}
+                                  </div>
+                                </div>
+                                <div className="sm:col-span-3">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    RUD / RUFE
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-black text-blue-800 min-h-[34px] flex items-center">
+                                    {editingSolicitudCodigo || 'AUTOGENERADO'}
+                                  </div>
+                                </div>
+
+                                <div className="sm:col-span-5">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    CÉDULA
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {documento || <span className="text-slate-400 font-sans font-normal">Sin documento</span>}
+                                  </div>
+                                </div>
+                                <div className="sm:col-span-7">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    TELÉFONO
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {telefono || <span className="text-slate-400 font-sans font-normal">Sin teléfono</span>}
+                                  </div>
+                                </div>
+
+                                <div className="sm:col-span-8">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    DIRECCIÓN
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {direccion || observacionSector || <span className="text-slate-400 font-normal">Sin dirección registrada</span>}
+                                  </div>
+                                </div>
+                                <div className="sm:col-span-4">
+                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
+                                    BARRIO / VEREDA
+                                  </span>
+                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
+                                    {sectores.find((s) => s.id_sector === sectorId)?.nombre_sector || 'Sin sector'}
+                                  </div>
+                                </div>
+                              </div>
+
+                              {/* Tabla Oficial de Materiales: TIPO DE MATERIAL | CANTIDAD | TIPO | APROBADO */}
+                              <div className="space-y-2">
+                                <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-2 py-1.5 text-[11px] font-black text-slate-900 uppercase tracking-wider border-b-2 border-slate-900">
+                                  <div className="sm:col-span-5">TIPO DE MATERIAL</div>
+                                  <div className="sm:col-span-2 text-center">CANTIDAD</div>
+                                  <div className="sm:col-span-3 text-center">TIPO / ESPECIFICACIÓN</div>
+                                  <div className="sm:col-span-2 text-center">APROBADO</div>
+                                </div>
+
+                                <div className="space-y-2">
+                                  {bancoMateriales.map((row, idx) => {
+                                    const isActiveRow = row.seleccionado || Number(row.cantidad) > 0;
+                                    return (
+                                      <div
+                                        key={`${row.material}-${idx}`}
+                                        className={`grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-2.5 rounded-xl border transition-all ${
+                                          isActiveRow
+                                            ? 'bg-amber-50/50 border-amber-400 shadow-2xs'
+                                            : 'bg-white border-slate-200 hover:border-slate-300'
+                                        }`}
+                                      >
+                                        {/* Columna 1: TIPO DE MATERIAL (Con Checkbox estilo Checklist) */}
+                                        <div className="sm:col-span-5">
+                                          <label className="flex items-center gap-2.5 px-3 py-2 bg-white border-2 border-slate-900 rounded-lg cursor-pointer select-none">
+                                            <input
+                                              type="checkbox"
+                                              checked={isActiveRow}
+                                              onChange={(e) => {
+                                                const checked = e.target.checked;
+                                                const next = [...bancoMateriales];
+                                                next[idx] = {
+                                                  ...next[idx],
+                                                  seleccionado: checked,
+                                                  cantidad: checked && (!next[idx].cantidad || Number(next[idx].cantidad) === 0) ? 1 : checked ? next[idx].cantidad : '',
+                                                  aprobado: checked ? next[idx].aprobado : false,
+                                                };
+                                                setBancoMateriales(next);
+                                              }}
+                                              className="h-4 w-4 rounded border-slate-400 text-[#0071e3] focus:ring-[#0071e3] shrink-0"
+                                            />
+                                            <span className="text-xs font-extrabold text-slate-900 leading-tight">
+                                              {row.material}
+                                            </span>
+                                          </label>
+                                        </div>
+
+                                        {/* Columna 2: CANTIDAD */}
+                                        <div className="sm:col-span-2">
+                                          <label className="block sm:hidden text-[10px] font-black text-slate-600 uppercase mb-0.5">
+                                            Cantidad:
+                                          </label>
+                                          <input
+                                            type="number"
+                                            min="0"
+                                            placeholder="0"
+                                            value={row.cantidad}
+                                            onChange={(e) => {
+                                              const val = e.target.value;
+                                              const next = [...bancoMateriales];
+                                              next[idx] = {
+                                                ...next[idx],
+                                                cantidad: val,
+                                                seleccionado: Number(val) > 0,
+                                              };
+                                              setBancoMateriales(next);
+                                            }}
+                                            className="w-full px-3 py-2 bg-white border-2 border-slate-900 rounded-lg text-xs font-mono font-black text-center text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                          />
+                                        </div>
+
+                                        {/* Columna 3: TIPO / ESPECIFICACIÓN */}
+                                        <div className="sm:col-span-3">
+                                          <label className="block sm:hidden text-[10px] font-black text-slate-600 uppercase mb-0.5">
+                                            Tipo / Referencia:
+                                          </label>
+                                          <input
+                                            type="text"
+                                            placeholder="Ej. Gris 50kg, Calibre, N°..."
+                                            value={row.tipo}
+                                            onChange={(e) => {
+                                              const next = [...bancoMateriales];
+                                              next[idx] = {
+                                                ...next[idx],
+                                                tipo: e.target.value,
+                                                seleccionado: e.target.value.trim() !== '' ? true : next[idx].seleccionado,
+                                              };
+                                              setBancoMateriales(next);
+                                            }}
+                                            className="w-full px-3 py-2 bg-white border-2 border-slate-900 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                          />
+                                        </div>
+
+                                        {/* Columna 4: APROBADO (Recuadro punteado como en el formato físico) */}
+                                        <div className="sm:col-span-2 flex items-center justify-center">
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              const next = [...bancoMateriales];
+                                              const nextAprob = !next[idx].aprobado;
+                                              next[idx] = {
+                                                ...next[idx],
+                                                aprobado: nextAprob,
+                                                seleccionado: nextAprob ? true : next[idx].seleccionado,
+                                                cantidad: nextAprob && (!next[idx].cantidad || Number(next[idx].cantidad) === 0) ? 1 : next[idx].cantidad,
+                                              };
+                                              setBancoMateriales(next);
+                                            }}
+                                            className={`w-full py-2 px-2.5 rounded-lg border-2 border-dashed text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                                              row.aprobado
+                                                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                                                : 'border-slate-500 bg-white text-slate-500 hover:bg-slate-50'
+                                            }`}
+                                          >
+                                            {row.aprobado ? (
+                                              <>
+                                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+                                                <span>APROBADO</span>
+                                              </>
+                                            ) : (
+                                              <span>Pendiente</span>
+                                            )}
+                                          </button>
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+
+                              {/* Pie del formato: SOLICITADO POR */}
+                              <div className="pt-3 border-t-2 border-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                                <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2.5">
+                                  <label className="text-xs font-black text-slate-950 uppercase tracking-wider shrink-0">
+                                    SOLICITADO POR:
+                                  </label>
+                                  <input
+                                    type="text"
+                                    placeholder={
+                                      nombres || apellidos
+                                        ? `${nombres} ${apellidos}`.trim()
+                                        : user
+                                          ? `${user.nombres || ''} ${user.apellidos || ''}`.trim()
+                                          : 'Nombre de quien solicita los materiales'
+                                    }
+                                    value={solicitadoPorMateriales}
+                                    onChange={(e) => setSolicitadoPorMateriales(e.target.value)}
+                                    className="flex-1 px-3.5 py-2 bg-slate-50 border-b-2 border-slate-900 text-xs font-bold text-slate-900 focus:bg-white outline-none"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const nombreCustom = window.prompt('Ingrese el nombre del material adicional a agregar al listado:');
+                                    if (nombreCustom && nombreCustom.trim()) {
+                                      setBancoMateriales([
+                                        ...bancoMateriales,
+                                        {
+                                          material: nombreCustom.trim(),
+                                          seleccionado: true,
+                                          cantidad: 1,
+                                          tipo: '',
+                                          aprobado: false,
+                                        },
+                                      ]);
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                                >
+                                  <Plus className="h-3.5 w-3.5" />
+                                  <span>+ Agregar otro material</span>
+                                </button>
+                              </div>
+                            </div>
+                          </div>
                         </div>
 
-                        {/* Barra inferior de navegación de Evaluación de Daños (Mockup 5) */}
+                        {/* Barra inferior de navegación / Envío de Evaluación del Inmueble */}
                         <div className="pt-3 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
                           <button
                             type="button"
                             onClick={() => setFormStepTab(3)}
                             className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
                           >
-                            ← Volver
+                            ← Volver (RUFE)
                           </button>
-                          <div className="flex items-center gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
                             <button
                               type="button"
                               onClick={handleGuardarBorrador}
@@ -7107,14 +7845,37 @@ export const CatastrofesView: React.FC = () => {
                             >
                               Guardar borrador
                             </button>
-                            <button
-                              type="button"
-                              onClick={() => setFormStepTab(5)}
-                              className="px-6 py-2.5 bg-[#0071e3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
-                            >
-                              <span>Continuar (Necesidades y ayudas)</span>
-                              <ChevronRight className="h-4 w-4" />
-                            </button>
+                            {HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ? (
+                              <button
+                                type="button"
+                                onClick={() => setFormStepTab(5)}
+                                className="px-6 py-2.5 bg-[#0071e3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <span>Continuar (Necesidades y ayudas)</span>
+                                <ChevronRight className="h-4 w-4" />
+                              </button>
+                            ) : (
+                              <button
+                                type="submit"
+                                disabled={submitting}
+                                className={`px-7 py-2.5 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
+                                  editingSolicitudId
+                                    ? 'bg-amber-600 hover:bg-amber-700'
+                                    : 'bg-[#0071e3] hover:bg-[#0077ED]'
+                                }`}
+                              >
+                                {submitting ? (
+                                  <Loader2 className="h-4 w-4 animate-spin" />
+                                ) : (
+                                  <CheckCircle className="h-4 w-4" />
+                                )}
+                                <span>
+                                  {editingSolicitudId
+                                    ? `Guardar Cambios (${editingSolicitudCodigo || `SOL-${editingSolicitudId}`})`
+                                    : 'Registrar Solicitud y Evaluación'}
+                                </span>
+                              </button>
+                            )}
                           </div>
                         </div>
                       </div>
@@ -7869,18 +8630,46 @@ export const CatastrofesView: React.FC = () => {
                               </p>
                             )}
 
-                            <div className="flex items-center gap-1.5 pt-1 border-t border-slate-200/60" onClick={(e) => e.stopPropagation()}>
+                            <div className="flex flex-wrap items-center gap-1.5 pt-1 border-t border-slate-200/60" onClick={(e) => e.stopPropagation()}>
                               <button
                                 type="button"
                                 onClick={() => {
+                                  setDetailModalInitialTab('censo');
                                   setDetailedRequestId(sol.id_solicitud);
                                   setIsDetailModalOpen(true);
                                 }}
-                                className="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-[11px] py-1.5 px-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                                className="flex-1 bg-blue-700 hover:bg-blue-800 text-white font-extrabold text-[11px] py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
                               >
                                 <Eye className="h-3.5 w-3.5 text-amber-300" />
-                                <span>Ver Detalle</span>
+                                <span>Detalle</span>
                               </button>
+
+                              <button
+                                type="button"
+                                onClick={() => setVisitaModalSolicitud(sol)}
+                                className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                                title="Registrar una o múltiples visitas técnicas a este inmueble"
+                              >
+                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                <span>+ Visita ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                              </button>
+
+                              {!isCensoOnlyUser && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setSelectedRequest(sol);
+                                    setRegistroModo('ENTREGA_EXISTENTE');
+                                    setActiveTab('formulario');
+                                    setFormStepTab(5);
+                                    showToast(`Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para atender y crear entrega.`, 'success');
+                                  }}
+                                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Package className="h-3.5 w-3.5" />
+                                  <span>Atender</span>
+                                </button>
+                              )}
 
                               <button
                                 type="button"
@@ -7890,22 +8679,6 @@ export const CatastrofesView: React.FC = () => {
                               >
                                 <Pencil className="h-3.5 w-3.5" />
                               </button>
-
-                              {!isCensoOnlyUser && isPending && (
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    setSelectedRequest(sol);
-                                    setRegistroModo('ENTREGA_EXISTENTE');
-                                    setActiveTab('formulario');
-                                    showToast(`Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para atender en formulario.`, 'success');
-                                  }}
-                                  className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] py-1.5 px-2.5 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
-                                >
-                                  <Package className="h-3.5 w-3.5" />
-                                  <span>Atender</span>
-                                </button>
-                              )}
 
                               <button
                                 type="button"
@@ -8464,6 +9237,7 @@ export const CatastrofesView: React.FC = () => {
                                       <button
                                         type="button"
                                         onClick={() => {
+                                          setDetailModalInitialTab('censo');
                                           setDetailedRequestId(sol.id_solicitud);
                                           setIsDetailModalOpen(true);
                                         }}
@@ -8475,6 +9249,15 @@ export const CatastrofesView: React.FC = () => {
 
                                       <button
                                         type="button"
+                                        onClick={() => setVisitaModalSolicitud(sol)}
+                                        className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
+                                      >
+                                        <ClipboardCheck className="h-3.5 w-3.5" />
+                                        <span>+ Realizar Visita Técnica ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                                      </button>
+
+                                      <button
+                                        type="button"
                                         onClick={() => handleEditarSolicitud(sol)}
                                         className="w-full bg-amber-500 hover:bg-amber-600 text-slate-950 font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                       >
@@ -8482,19 +9265,20 @@ export const CatastrofesView: React.FC = () => {
                                         <span>Editar esta Solicitud</span>
                                       </button>
 
-                                      {!isCensoOnlyUser && isPending && (
+                                      {!isCensoOnlyUser && (
                                         <button
                                           type="button"
                                           onClick={() => {
                                             setSelectedRequest(sol);
                                             setRegistroModo('ENTREGA_EXISTENTE');
                                             setActiveTab('formulario');
+                                            setFormStepTab(5);
                                             showToast(`Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para atender en formulario.`, 'success');
                                           }}
                                           className="w-full bg-rose-600 hover:bg-rose-700 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer text-center"
                                         >
                                           <Package className="h-3.5 w-3.5" />
-                                          <span>Atender esta Solicitud</span>
+                                          <span>Atender (Crear Entrega)</span>
                                         </button>
                                       )}
                                     </div>
@@ -8752,17 +9536,28 @@ export const CatastrofesView: React.FC = () => {
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right">
-                            <button
-                              type="button"
-                              onClick={async () => {
-                                await handleEditarSolicitud(sol.id_solicitud);
-                                setFormStepTab(4);
-                              }}
-                              className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0062CC] text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <ListCheck className="h-3.5 w-3.5" />
-                              <span>Evaluar Daños</span>
-                            </button>
+                            <div className="inline-flex items-center gap-1.5 justify-end">
+                              <button
+                                type="button"
+                                onClick={() => setVisitaModalSolicitud(sol)}
+                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                title="Registrar nueva visita técnica"
+                              >
+                                <ClipboardCheck className="h-3.5 w-3.5" />
+                                <span>+ Visita ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={async () => {
+                                  await handleEditarSolicitud(sol.id_solicitud);
+                                  setFormStepTab(4);
+                                }}
+                                className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0062CC] text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <ListCheck className="h-3.5 w-3.5" />
+                                <span>Evaluar Daños</span>
+                              </button>
+                            </div>
                           </td>
                         </tr>
                       ))}

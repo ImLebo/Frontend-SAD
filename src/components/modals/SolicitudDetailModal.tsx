@@ -46,6 +46,7 @@ import { SeguimientoObraSection } from '../obra/SeguimientoObraSection';
 
 interface Props {
   idSolicitud: number | null;
+  initialTab?: 'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos';
   onClose: () => void;
   onAtenderSolicitud?: (detail: SolicitudDetailResponse) => void;
   onEditarSolicitud?: (detail: SolicitudDetailResponse) => void;
@@ -55,6 +56,7 @@ interface Props {
 
 export const SolicitudDetailModal: React.FC<Props> = ({
   idSolicitud,
+  initialTab = 'censo',
   onClose,
   onAtenderSolicitud,
   onEditarSolicitud,
@@ -63,7 +65,8 @@ export const SolicitudDetailModal: React.FC<Props> = ({
 }) => {
   const [detail, setDetail] = useState<SolicitudDetailResponse | any>(null);
   const [loading, setLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos'>('censo');
+  const [activeTab, setActiveTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos'>(initialTab);
+  const [savingMateriales, setSavingMateriales] = useState(false);
   const [selectedPhotoUrl, setSelectedPhotoUrl] = useState<string | null>(null);
   const [copiedGps, setCopiedGps] = useState(false);
   const [copiedDoc, setCopiedDoc] = useState(false);
@@ -84,6 +87,12 @@ export const SolicitudDetailModal: React.FC<Props> = ({
     costo_estimado_danos: 0,
     observaciones_tecnicas: ''
   });
+
+  useEffect(() => {
+    if (initialTab) {
+      setActiveTab(initialTab);
+    }
+  }, [initialTab]);
 
   useEffect(() => {
     if (idSolicitud) {
@@ -255,6 +264,16 @@ export const SolicitudDetailModal: React.FC<Props> = ({
 
             {/* Action Bar */}
             <div className="flex items-center gap-2 flex-wrap">
+              <button
+                type="button"
+                onClick={() => setIsVisitaModalOpen(true)}
+                className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
+                title="Registrar una nueva visita técnica de verificación (se permiten múltiples visitas)"
+              >
+                <ClipboardCheck className="h-3.5 w-3.5" />
+                <span>+ Visita Técnica ({detail?.visitas_tecnicas?.length || 0})</span>
+              </button>
+
               {onEditarSolicitud && detail && (
                 <button
                   type="button"
@@ -898,6 +917,114 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                         </div>
                       </div>
                     )}
+
+                    {/* BANCO DE MATERIALES GOBIERNO DE ANSERMA (Visualización y Aprobación Directa) */}
+                    {(() => {
+                      const rawBm: any[] = detail.evaluacion_dano?.banco_materiales_json || detail.banco_materiales_json || [];
+                      const materialesActivos = Array.isArray(rawBm)
+                        ? rawBm.filter((m) => m.seleccionado || Number(m.cantidad) > 0 || m.aprobado)
+                        : [];
+                      const solicitadoPor =
+                        detail.evaluacion_dano?.solicitado_por_materiales ||
+                        detail.solicitado_por_materiales ||
+                        `${detail.ciudadano?.nombres || ''} ${detail.ciudadano?.apellidos || ''}`.trim();
+
+                      return (
+                        <div className="bg-white rounded-2xl border-2 border-slate-900 overflow-hidden shadow-2xs">
+                          <div className="bg-slate-900 text-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+                            <div className="flex items-center gap-2">
+                              <PackageCheck className="h-4 w-4 text-amber-400" />
+                              <span className="text-xs font-black uppercase tracking-wider">
+                                BANCO DE MATERIALES GOBIERNO DE ANSERMA
+                              </span>
+                            </div>
+                            <span className="text-[11px] font-bold text-amber-300">
+                              {materialesActivos.length} material(es) requerido(s) • {materialesActivos.filter((m) => m.aprobado).length} aprobado(s)
+                            </span>
+                          </div>
+
+                          <div className="p-4 space-y-3 text-xs">
+                            {materialesActivos.length === 0 ? (
+                              <div className="py-4 text-center text-slate-500 bg-slate-50 rounded-xl border border-slate-200">
+                                No se han solicitado materiales en el Banco de Materiales para esta evaluación.
+                              </div>
+                            ) : (
+                              <div className="overflow-x-auto rounded-xl border border-slate-200">
+                                <table className="w-full text-left text-xs">
+                                  <thead className="bg-slate-100 text-slate-800 text-[10px] font-black uppercase border-b border-slate-200">
+                                    <tr>
+                                      <th className="py-2.5 px-3">Tipo de Material</th>
+                                      <th className="py-2.5 px-3 text-center">Cantidad</th>
+                                      <th className="py-2.5 px-3">Tipo / Especificación</th>
+                                      <th className="py-2.5 px-3 text-center">Estado / Aprobado</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody className="divide-y divide-slate-100">
+                                    {rawBm.map((mat, idx) => {
+                                      if (!mat.seleccionado && !(Number(mat.cantidad) > 0) && !mat.aprobado) return null;
+                                      return (
+                                        <tr key={idx} className="hover:bg-slate-50">
+                                          <td className="py-2.5 px-3 font-extrabold text-slate-900">{mat.material}</td>
+                                          <td className="py-2.5 px-3 text-center font-mono font-black text-blue-900">{mat.cantidad || 1}</td>
+                                          <td className="py-2.5 px-3 text-slate-700">{mat.tipo || 'Estándar'}</td>
+                                          <td className="py-2.5 px-3 text-center">
+                                            <button
+                                              type="button"
+                                              disabled={savingMateriales}
+                                              onClick={async () => {
+                                                try {
+                                                  setSavingMateriales(true);
+                                                  const updatedList = [...rawBm];
+                                                  updatedList[idx] = { ...updatedList[idx], aprobado: !updatedList[idx].aprobado };
+                                                  await sacService.actualizarBancoMateriales(detail.id_solicitud, {
+                                                    banco_materiales_json: updatedList,
+                                                    solicitado_por_materiales: solicitadoPor,
+                                                  });
+                                                  await loadDetail();
+                                                } catch (e) {
+                                                  console.error('Error actualizando aprobación de material', e);
+                                                } finally {
+                                                  setSavingMateriales(false);
+                                                }
+                                              }}
+                                              className={`px-2.5 py-1 rounded-lg border-2 border-dashed text-[10px] font-black transition cursor-pointer inline-flex items-center gap-1 ${
+                                                mat.aprobado
+                                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                                                  : 'border-slate-400 bg-white text-slate-600 hover:bg-slate-100'
+                                              }`}
+                                              title="Clic para aprobar o desaprobar este material"
+                                            >
+                                              {mat.aprobado ? (
+                                                <>
+                                                  <CheckCircle2 className="h-3 w-3 text-emerald-600" />
+                                                  <span>APROBADO</span>
+                                                </>
+                                              ) : (
+                                                <span>Pendiente (Clic para Aprobar)</span>
+                                              )}
+                                            </button>
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                            )}
+
+                            <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                              <span>
+                                <strong className="uppercase text-slate-700">SOLICITADO POR:</strong>{' '}
+                                <span className="font-bold text-slate-900">{solicitadoPor || 'No especificado'}</span>
+                              </span>
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                RUD/RUFE: {detail.codigo_solicitud}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })()}
                   </div>
                 )}
 
@@ -929,16 +1056,38 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                       )}
                     </div>
 
-                    {/* Bloque 1: Forma de Tenencia y Estado del Bien */}
+                    {/* Bloque 1: Forma de Tenencia, Enfoque de la Solicitud, Ficha Catastral y Estado del Bien */}
                     <div className="bg-white rounded-2xl border border-slate-200 p-5 shadow-2xs space-y-3">
                       <h5 className="text-xs font-black text-indigo-950 uppercase tracking-wide border-b border-slate-100 pb-2">
-                        1. Tenencia y Estado del Bien Afectado
+                        1. Tenencia, Enfoque de la Solicitud, Ficha Catastral y Estado del Bien Afectado
                       </h5>
-                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3">
+                        <div className="p-3.5 bg-indigo-50/60 rounded-xl border border-indigo-200">
+                          <span className="text-[10px] font-bold text-indigo-700 uppercase block mb-1">Modalidad de Tenencia</span>
+                          <span className="text-xs font-black text-indigo-950 block">
+                            {detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE' || detail.tipo_tenencia === 'PROPIETARIO_HABITANTE'
+                              ? 'Propietario Residente'
+                              : detail.tipo_tenencia === 'ARRENDATARIO'
+                                ? 'Arrendatario / Inquilino'
+                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE' || detail.tipo_tenencia === 'PROPIETARIO_NO_HABITANTE'
+                                  ? 'Propietario No Residente'
+                                  : detail.formulario_rufe?.forma_tenencia || condicionVivienda}
+                          </span>
+                        </div>
+                        <div className="p-3.5 bg-blue-50/60 rounded-xl border border-blue-200">
+                          <span className="text-[10px] font-bold text-blue-700 uppercase block mb-1">Enfoque de la Solicitud</span>
+                          <span className="text-xs font-black text-blue-950 block">
+                            {detail.subtipo_emergencia === 'SOCIAL'
+                              ? 'Solo Asistencia Social'
+                              : detail.subtipo_emergencia === 'INMUEBLE'
+                                ? 'Solo Inmueble / Material'
+                                : 'Social y de Inmueble (Integral)'}
+                          </span>
+                        </div>
                         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Forma de Tenencia</span>
-                          <span className="text-xs font-black text-slate-900 block">
-                            {detail.formulario_rufe?.forma_tenencia || condicionVivienda}
+                          <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Ficha Catastral</span>
+                          <span className="text-xs font-mono font-black text-slate-900 block">
+                            {detail.ficha_catastral || 'No registrada'}
                           </span>
                         </div>
                         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">

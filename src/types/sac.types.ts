@@ -177,6 +177,8 @@ export interface VisitaTecnica {
   };
   fotos_techo?: string[];
   fotos_estructura?: string[];
+  banco_materiales_json?: BancoMaterialItem[];
+  solicitado_por_materiales?: string;
 }
 
 export interface SeguimientoObra {
@@ -270,6 +272,14 @@ export interface CiudadanoData {
   id_sector?: number;
 }
 
+export interface BancoMaterialItem {
+  material: string;
+  seleccionado: boolean;
+  cantidad: number | string;
+  tipo: string;
+  aprobado: boolean;
+}
+
 export interface EvaluacionDanoData {
   tipo_inmueble?: string;
   nivel_afectacion_vivienda: 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' | string;
@@ -302,6 +312,8 @@ export interface EvaluacionDanoData {
   descripcion_vivienda_previa?: string;
   fotos_techo?: string[];
   fotos_estructura?: string[];
+  banco_materiales_json?: BancoMaterialItem[];
+  solicitado_por_materiales?: string;
 }
 
 export interface IntegranteFamiliarData {
@@ -390,6 +402,10 @@ export interface SolicitudDetailResponse {
   observaciones_sector?: string;
   ficha_catastral?: string;
   tipo_tenencia?: string;
+  subtipo_emergencia?: 'SOCIAL_E_INMUEBLE' | 'SOCIAL' | 'INMUEBLE' | string;
+  estimacion_perdidas_pesos?: number;
+  banco_materiales_json?: BancoMaterialItem[];
+  solicitado_por_materiales?: string;
   comunidad_jac_nombre?: string;
   comunidad_jac_personeria?: string;
   comunidad_jac_representante?: string;
