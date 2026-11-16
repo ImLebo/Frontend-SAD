@@ -50,6 +50,7 @@ interface Props {
   onClose: () => void;
   onAtenderSolicitud?: (detail: SolicitudDetailResponse) => void;
   onEditarSolicitud?: (detail: SolicitudDetailResponse) => void;
+  onIniciarVisitaTecnica?: (detail: SolicitudDetailResponse) => void;
   onEditarEntrega?: (entrega: any, detail: SolicitudDetailResponse) => void;
   isCensoOnly?: boolean;
 }
@@ -60,6 +61,7 @@ export const SolicitudDetailModal: React.FC<Props> = ({
   onClose,
   onAtenderSolicitud,
   onEditarSolicitud,
+  onIniciarVisitaTecnica,
   onEditarEntrega,
   isCensoOnly = false,
 }) => {
@@ -266,12 +268,19 @@ export const SolicitudDetailModal: React.FC<Props> = ({
             <div className="flex items-center gap-2 flex-wrap">
               <button
                 type="button"
-                onClick={() => setIsVisitaModalOpen(true)}
+                onClick={() => {
+                  if (onIniciarVisitaTecnica && detail) {
+                    onClose();
+                    onIniciarVisitaTecnica(detail);
+                  } else {
+                    setIsVisitaModalOpen(true);
+                  }
+                }}
                 className="px-3.5 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-xs transition-all flex items-center gap-1.5 cursor-pointer hover:scale-[1.02]"
-                title="Registrar una nueva visita técnica de verificación (se permiten múltiples visitas)"
+                title="Realizar visita técnica para re-evaluar la vivienda y verificar lo reportado"
               >
                 <ClipboardCheck className="h-3.5 w-3.5" />
-                <span>+ Visita Técnica ({detail?.visitas_tecnicas?.length || 0})</span>
+                <span>Visita Técnica ({detail?.visitas_tecnicas?.length || 0})</span>
               </button>
 
               {onEditarSolicitud && detail && (
@@ -930,17 +939,24 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                         `${detail.ciudadano?.nombres || ''} ${detail.ciudadano?.apellidos || ''}`.trim();
 
                       return (
-                        <div className="bg-white rounded-2xl border-2 border-slate-900 overflow-hidden shadow-2xs">
-                          <div className="bg-slate-900 text-white px-5 py-3 flex flex-wrap items-center justify-between gap-2">
+                        <div className="bg-white rounded-2xl border border-slate-200 overflow-hidden shadow-2xs">
+                          <div className="bg-slate-50 border-b border-slate-200 px-5 py-3 flex flex-wrap items-center justify-between gap-2">
                             <div className="flex items-center gap-2">
-                              <PackageCheck className="h-4 w-4 text-amber-400" />
-                              <span className="text-xs font-black uppercase tracking-wider">
-                                BANCO DE MATERIALES GOBIERNO DE ANSERMA
+                              <div className="p-1.5 rounded-lg bg-blue-50 text-[#0071e3] border border-blue-100">
+                                <PackageCheck className="h-4 w-4" />
+                              </div>
+                              <span className="text-xs font-extrabold text-slate-900">
+                                Banco de Materiales — Gobierno de Anserma
                               </span>
                             </div>
-                            <span className="text-[11px] font-bold text-amber-300">
-                              {materialesActivos.length} material(es) requerido(s) • {materialesActivos.filter((m) => m.aprobado).length} aprobado(s)
-                            </span>
+                            <div className="flex items-center gap-1.5">
+                              <span className="px-2.5 py-0.5 rounded-full bg-blue-50 border border-blue-200 text-[#0071e3] text-[11px] font-bold">
+                                {materialesActivos.length} solicitado(s)
+                              </span>
+                              <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
+                                {materialesActivos.filter((m) => m.aprobado).length} aprobado(s)
+                              </span>
+                            </div>
                           </div>
 
                           <div className="p-4 space-y-3 text-xs">
@@ -951,7 +967,7 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             ) : (
                               <div className="overflow-x-auto rounded-xl border border-slate-200">
                                 <table className="w-full text-left text-xs">
-                                  <thead className="bg-slate-100 text-slate-800 text-[10px] font-black uppercase border-b border-slate-200">
+                                  <thead className="bg-slate-50 text-slate-600 text-[10px] font-bold uppercase border-b border-slate-200">
                                     <tr>
                                       <th className="py-2.5 px-3">Tipo de Material</th>
                                       <th className="py-2.5 px-3 text-center">Cantidad</th>
@@ -964,8 +980,8 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                                       if (!mat.seleccionado && !(Number(mat.cantidad) > 0) && !mat.aprobado) return null;
                                       return (
                                         <tr key={idx} className="hover:bg-slate-50">
-                                          <td className="py-2.5 px-3 font-extrabold text-slate-900">{mat.material}</td>
-                                          <td className="py-2.5 px-3 text-center font-mono font-black text-blue-900">{mat.cantidad || 1}</td>
+                                          <td className="py-2.5 px-3 font-bold text-slate-900">{mat.material}</td>
+                                          <td className="py-2.5 px-3 text-center font-mono font-bold text-blue-700">{mat.cantidad || 1}</td>
                                           <td className="py-2.5 px-3 text-slate-700">{mat.tipo || 'Estándar'}</td>
                                           <td className="py-2.5 px-3 text-center">
                                             <button
@@ -987,17 +1003,17 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                                                   setSavingMateriales(false);
                                                 }
                                               }}
-                                              className={`px-2.5 py-1 rounded-lg border-2 border-dashed text-[10px] font-black transition cursor-pointer inline-flex items-center gap-1 ${
+                                              className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 ${
                                                 mat.aprobado
-                                                  ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                                                  : 'border-slate-400 bg-white text-slate-600 hover:bg-slate-100'
+                                                  ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
+                                                  : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
                                               }`}
                                               title="Clic para aprobar o desaprobar este material"
                                             >
                                               {mat.aprobado ? (
                                                 <>
                                                   <CheckCircle2 className="h-3 w-3 text-emerald-600" />
-                                                  <span>APROBADO</span>
+                                                  <span>Aprobado</span>
                                                 </>
                                               ) : (
                                                 <span>Pendiente (Clic para Aprobar)</span>
@@ -1012,13 +1028,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               </div>
                             )}
 
-                            <div className="pt-2 border-t border-slate-200 flex items-center justify-between text-xs">
+                            <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                               <span>
-                                <strong className="uppercase text-slate-700">SOLICITADO POR:</strong>{' '}
+                                <strong className="uppercase text-slate-600">Solicitado por:</strong>{' '}
                                 <span className="font-bold text-slate-900">{solicitadoPor || 'No especificado'}</span>
-                              </span>
-                              <span className="text-[10px] text-slate-400 font-mono">
-                                RUD/RUFE: {detail.codigo_solicitud}
                               </span>
                             </div>
                           </div>

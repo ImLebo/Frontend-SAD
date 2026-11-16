@@ -151,10 +151,14 @@ export const CatastrofesView: React.FC = () => {
   const [selectedTabsToClean, setSelectedTabsToClean] = useState<number[]>([1]);
   const [isListarModalOpen, setIsListarModalOpen] = useState(false);
   const [listarSearchQuery, setListarSearchQuery] = useState('');
+  const deferredListarSearch = useDeferredValue(listarSearchQuery);
   const [listarEventoFiltro, setListarEventoFiltro] = useState<number | 'ALL'>('ALL');
   const [listarEstadoFiltro, setListarEstadoFiltro] = useState<'all' | 'pending' | 'completed'>('all');
   const [listarSectorFiltro, setListarSectorFiltro] = useState<number | 'ALL'>('ALL');
   const [listarNivelDanoFiltro, setListarNivelDanoFiltro] = useState<string>('ALL');
+  const [listarCurrentPage, setListarCurrentPage] = useState<number>(1);
+  const [listarPageSize, setListarPageSize] = useState<number>(10);
+  const [evalCurrentPage, setEvalCurrentPage] = useState<number>(1);
   const [visitaModalSolicitud, setVisitaModalSolicitud] = useState<any | null>(null);
   const [savingVisitaDirecta, setSavingVisitaDirecta] = useState(false);
   const [detailModalInitialTab, setDetailModalInitialTab] = useState<'censo' | 'rufe' | 'familia' | 'insumos' | 'visitas' | 'obra' | 'entregas' | 'fotos'>('censo');
@@ -198,8 +202,8 @@ export const CatastrofesView: React.FC = () => {
   const [eventos, setEventos] = useState<any[]>([]);
   const [selectedEventoId, setSelectedEventoId] = useState<number>(1);
 
-  // Mode: SOLICITUD_SOLO | ENTREGA_DIRECTA | ENTREGA_EXISTENTE
-  const [registroModo, setRegistroModo] = useState<'SOLICITUD_SOLO' | 'ENTREGA_DIRECTA' | 'ENTREGA_EXISTENTE'>('SOLICITUD_SOLO');
+  // Mode: SOLICITUD_SOLO | VISITA_TECNICA | ENTREGA_DIRECTA | ENTREGA_EXISTENTE
+  const [registroModo, setRegistroModo] = useState<'SOLICITUD_SOLO' | 'VISITA_TECNICA' | 'ENTREGA_DIRECTA' | 'ENTREGA_EXISTENTE'>('SOLICITUD_SOLO');
 
   // Role permissions (Roles: 1: Censo, 2: Entregas, 3: Funcionario, 4: Admin)
   const nivel = user?.nivel ?? 3;
@@ -443,15 +447,19 @@ export const CatastrofesView: React.FC = () => {
   const [comercioNitRut, setComercioNitRut] = useState('');
   const [comercioAfectacionMercancia, setComercioAfectacionMercancia] = useState('');
 
-  // Infraestructuras Rurales (Finca)
+  // Infraestructuras Rurales (Finca: Casa, Beneficiadero de café, Casa de agregados, Bodega de insumos, Infraestructura pecuaria, etc.)
   const [infraestructurasRurales, setInfraestructurasRurales] = useState<
     Array<{
       tipo_infraestructura: string;
-      estado_dano: 'Leve' | 'Parcial' | 'Grave' | 'Colapso Total';
+      nombre_identificador?: string;
+      estado_dano: 'Leve' | 'Moderado' | 'Parcial' | 'Grave' | 'Colapso Total';
       observaciones: string;
       costo_estimado_reparacion: number;
     }>
   >([]);
+  const [mostrarOtraInfraFinca, setMostrarOtraInfraFinca] = useState(false);
+  const [otraInfraFincaNombre, setOtraInfraFincaNombre] = useState('');
+  const [otraInfraFincaDano, setOtraInfraFincaDano] = useState<'Leve' | 'Moderado' | 'Grave' | 'Colapso Total'>('Moderado');
 
   // Entidades Donantes & Subcomponentes de Kits para entregas
   const [entidadesDonantes, setEntidadesDonantes] = useState<any[]>([]);
@@ -476,6 +484,30 @@ export const CatastrofesView: React.FC = () => {
     MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m }))
   );
   const [solicitadoPorMateriales, setSolicitadoPorMateriales] = useState<string>('');
+  const [mostrarAgregarMaterialInline, setMostrarAgregarMaterialInline] = useState<boolean>(false);
+  const [nuevoMaterialNombre, setNuevoMaterialNombre] = useState<string>('');
+  const [nuevoMaterialCantidad, setNuevoMaterialCantidad] = useState<string>('1');
+  const [nuevoMaterialTipo, setNuevoMaterialTipo] = useState<string>('');
+
+  // Estado para Visita Técnica y Re-evaluación de la Vivienda en el Formulario
+  const [visitaProfesionalResponsable, setVisitaProfesionalResponsable] = useState<string>(
+    user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() : ''
+  );
+  const [visitaCargoResponsable, setVisitaCargoResponsable] = useState<string>(
+    'Técnico / Ingeniero Gestión del Riesgo - Obras Públicas'
+  );
+  const [visitaVerificacionReporte, setVisitaVerificacionReporte] = useState<'CONFIRMADO' | 'AJUSTADO' | 'DESCARTADO'>('CONFIRMADO');
+  const [visitaDictamenHabitabilidad, setVisitaDictamenHabitabilidad] = useState<string>('HABITABLE');
+  const [visitaObservacionesTecnicas, setVisitaObservacionesTecnicas] = useState<string>('');
+  const [reporteInicialSnapshot, setReporteInicialSnapshot] = useState<{
+    nivel_vivienda: string;
+    nivel_techo: string;
+    nivel_paredes: string;
+    nivel_pisos: string;
+    observaciones: string;
+    total_visitas_previas: number;
+    visitas_previas: any[];
+  } | null>(null);
 
   // Filtro de Zona Urbana / Rural para Sectores & Observación del Sector
   const [sectorZoneFilter, setSectorZoneFilter] = useState<'all' | 'urbano' | 'rural'>('all');
@@ -607,7 +639,7 @@ export const CatastrofesView: React.FC = () => {
   }, [todasSolicitudes, selectedEventoId]);
 
   const filteredListarSolicitudes = useMemo(() => {
-    const q = listarSearchQuery.toLowerCase().trim();
+    const q = deferredListarSearch.toLowerCase().trim();
     return todasSolicitudes.filter((s: any) => {
       if (listarEventoFiltro !== 'ALL' && s.id_evento && s.id_evento !== listarEventoFiltro) {
         return false;
@@ -626,14 +658,27 @@ export const CatastrofesView: React.FC = () => {
       }
       if (!q) return true;
       const doc = String(s.documento || '').toLowerCase();
-      const nom = `${s.nombres || ''} ${s.apellidos || ''}`.toLowerCase();
+      const nom = `${s.nombres || ''} ${s.apellidos || ''} ${s.nombre_completo || ''}`.toLowerCase();
       const cod = String(s.codigo_solicitud || `SOL-${s.id_solicitud}`).toLowerCase();
       const sec = String(s.nombre_sector || '').toLowerCase();
       const dir = String(s.direccion_afectacion || s.direccion || '').toLowerCase();
       const tel = String(s.telefono || '').toLowerCase();
       return doc.includes(q) || nom.includes(q) || cod.includes(q) || sec.includes(q) || dir.includes(q) || tel.includes(q);
     });
-  }, [todasSolicitudes, listarSearchQuery, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro]);
+  }, [todasSolicitudes, deferredListarSearch, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro]);
+
+  useEffect(() => {
+    setListarCurrentPage(1);
+  }, [deferredListarSearch, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro, listarPageSize]);
+
+  const totalListarPages = useMemo(() => {
+    return Math.max(1, Math.ceil(filteredListarSolicitudes.length / listarPageSize));
+  }, [filteredListarSolicitudes.length, listarPageSize]);
+
+  const paginatedListarSolicitudes = useMemo(() => {
+    const start = (listarCurrentPage - 1) * listarPageSize;
+    return filteredListarSolicitudes.slice(start, start + listarPageSize);
+  }, [filteredListarSolicitudes, listarCurrentPage, listarPageSize]);
 
   const handleGuardarVisitaDirecta = async (payload: any) => {
     if (!visitaModalSolicitud?.id_solicitud) return;
@@ -1666,8 +1711,18 @@ export const CatastrofesView: React.FC = () => {
     setComercioNitRut('');
     setComercioAfectacionMercancia('');
     setInfraestructurasRurales([]);
+    setMostrarOtraInfraFinca(false);
+    setOtraInfraFincaNombre('');
     setBancoMateriales(MATERIALES_BANCO_DEFAULT.map((m) => ({ ...m })));
     setSolicitadoPorMateriales('');
+    setMostrarAgregarMaterialInline(false);
+    setNuevoMaterialNombre('');
+    setNuevoMaterialCantidad('1');
+    setNuevoMaterialTipo('');
+    setVisitaVerificacionReporte('CONFIRMADO');
+    setVisitaDictamenHabitabilidad('HABITABLE');
+    setVisitaObservacionesTecnicas('');
+    setReporteInicialSnapshot(null);
     setSelectedEntidadDonanteId(entidadesDonantes[0]?.id_entidad_donante || null);
   };
 
@@ -1782,12 +1837,15 @@ export const CatastrofesView: React.FC = () => {
   };
 
   const openListarModal = () => {
-    fetchSolicitudes();
+    if (todasSolicitudes.length === 0) {
+      fetchSolicitudes();
+    }
     setListarSearchQuery('');
     setListarEventoFiltro('ALL');
     setListarEstadoFiltro('all');
     setListarSectorFiltro('ALL');
     setListarNivelDanoFiltro('ALL');
+    setListarCurrentPage(1);
     setIsListarModalOpen(true);
   };
 
@@ -1894,6 +1952,14 @@ export const CatastrofesView: React.FC = () => {
           tab: 1,
         });
       }
+    } else if (registroModo === 'VISITA_TECNICA') {
+      if (!editingSolicitudId) {
+        motivos.push({
+          campo: 'Solicitud para Visita Técnica',
+          mensaje: 'Debe seleccionar una solicitud del listado para realizar la visita técnica y re-evaluar la vivienda.',
+          tab: 4,
+        });
+      }
     } else {
       if (!documento.trim()) {
         motivos.push({
@@ -1973,12 +2039,20 @@ export const CatastrofesView: React.FC = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Cargar solicitud para edición completa
-  const handleEditarSolicitud = async (solOrId: number | any) => {
+  // Cargar solicitud para edición completa o para Visita Técnica (re-evaluar vivienda)
+  const handleEditarSolicitud = async (
+    solOrId: number | any,
+    modoDestino: 'SOLICITUD_SOLO' | 'VISITA_TECNICA' = 'SOLICITUD_SOLO'
+  ) => {
     try {
       const id = typeof solOrId === 'number' ? solOrId : (solOrId.id_solicitud || solOrId.id);
       if (!id) return;
-      showToast('Cargando expediente para edición...', 'warning');
+      showToast(
+        modoDestino === 'VISITA_TECNICA'
+          ? 'Cargando solicitud para Visita Técnica y re-evaluación de la vivienda...'
+          : 'Cargando expediente para edición...',
+        'warning'
+      );
       const detail: SolicitudDetailResponse = await sacService.getSolicitudDetail(id);
 
       // Ciudadano
@@ -2159,24 +2233,81 @@ export const CatastrofesView: React.FC = () => {
         }
       }
 
+      const visitasPrevias = Array.isArray(detail.visitas_tecnicas) ? detail.visitas_tecnicas : [];
+      setReporteInicialSnapshot({
+        nivel_vivienda: detail.evaluacion_dano?.nivel_afectacion_vivienda || 'Ninguno',
+        nivel_techo: detail.evaluacion_dano?.nivel_afectacion_techo || 'Ninguno',
+        nivel_paredes: detail.evaluacion_dano?.nivel_afectacion_paredes || 'Ninguno',
+        nivel_pisos: detail.evaluacion_dano?.nivel_afectacion_pisos || 'Ninguno',
+        observaciones:
+          detail.evaluacion_dano?.observaciones_dano ||
+          detail.evaluacion_dano?.otros_danos_descripcion ||
+          '',
+        total_visitas_previas: visitasPrevias.length,
+        visitas_previas: visitasPrevias,
+      });
+
+      setSelectedRequest({
+        id_solicitud: detail.id_solicitud,
+        codigo_solicitud: detail.codigo_solicitud || `SOL-${detail.id_solicitud}`,
+        nombre_completo: `${detail.ciudadano?.nombres || ''} ${detail.ciudadano?.apellidos || ''}`.trim(),
+        documento: detail.ciudadano?.documento || '',
+        telefono: detail.ciudadano?.telefono || '',
+        nombre_sector: detail.sector?.nombre_sector || '',
+        direccion_afectacion: detail.direccion_afectacion || detail.ciudadano?.direccion || '',
+        afectacion_nivel: detail.evaluacion_dano?.nivel_afectacion_vivienda || 'Ninguno',
+        total_visitas: visitasPrevias.length,
+      });
+
       setEditingSolicitudId(detail.id_solicitud);
       setEditingSolicitudCodigo(detail.codigo_solicitud || `SOL-${detail.id_solicitud}`);
-      setRegistroModo('SOLICITUD_SOLO');
-      setActiveTab('formulario');
-      setFormStepTab(1);
-      showToast(`Expediente ${detail.codigo_solicitud || `SOL-${detail.id_solicitud}`} cargado en el formulario`, 'success');
+
+      if (modoDestino === 'VISITA_TECNICA') {
+        setVisita(true);
+        setVisitaProfesionalResponsable(
+          user ? `${user.nombres || ''} ${user.apellidos || ''}`.trim() || 'Profesional Técnico SAD' : 'Profesional Técnico SAD'
+        );
+        setVisitaVerificacionReporte('CONFIRMADO');
+        setVisitaDictamenHabitabilidad(
+          detail.evaluacion_dano?.requiere_evacuacion ||
+            detail.evaluacion_dano?.nivel_afectacion_vivienda === 'Colapso Total'
+            ? 'NO_HABITABLE'
+            : detail.evaluacion_dano?.nivel_afectacion_vivienda === 'Grave'
+              ? 'USO_CON_PRECAUCION'
+              : 'HABITABLE'
+        );
+        setVisitaObservacionesTecnicas('');
+        setRegistroModo('VISITA_TECNICA');
+        setActiveTab('formulario');
+        setFormStepTab(4);
+        showToast(
+          `Visita Técnica #${visitasPrevias.length + 1}: Re-evalúe la vivienda de ${detail.codigo_solicitud || `SOL-${detail.id_solicitud}`} y confirme los hallazgos`,
+          'success'
+        );
+      } else {
+        setRegistroModo('SOLICITUD_SOLO');
+        setActiveTab('formulario');
+        setFormStepTab(1);
+        showToast(`Expediente ${detail.codigo_solicitud || `SOL-${detail.id_solicitud}`} cargado en el formulario`, 'success');
+      }
       window.scrollTo({ top: 0, behavior: 'smooth' });
     } catch (error: any) {
       console.error('Error al cargar solicitud para edición:', error);
-      showToast('No se pudo cargar la solicitud para edición', 'error');
+      showToast('No se pudo cargar la solicitud', 'error');
     }
+  };
+
+  const handleIniciarVisitaTecnica = async (solOrId: number | any) => {
+    setIsListarModalOpen(false);
+    setIsDetailModalOpen(false);
+    await handleEditarSolicitud(solOrId, 'VISITA_TECNICA');
   };
 
   const handleSelectSolicitudDesdeListar = async (sol: any) => {
     setIsListarModalOpen(false);
     const id = sol.id_solicitud || sol.id;
     if (!id) return;
-    await handleEditarSolicitud(id);
+    await handleEditarSolicitud(id, registroModo === 'VISITA_TECNICA' ? 'VISITA_TECNICA' : 'SOLICITUD_SOLO');
   };
 
   // Form Submit Handler
@@ -2268,11 +2399,11 @@ export const CatastrofesView: React.FC = () => {
             propietario_telefono: esPropietarioSolicitante ? (telefono.trim() || undefined) : (propietarioTelefono.trim() || undefined),
             es_propietario_solicitante: esPropietarioSolicitante,
             requiere_evacuacion: evacuar,
-            visita_campo_realizada: visita,
+            visita_campo_realizada: registroModo === 'VISITA_TECNICA' ? true : visita,
             censo_oficial_realizado: censo,
             requiere_albergue: albergue,
             cuenta_red_apoyo: redApoyo,
-            afectacion_infraestructura_productiva: false,
+            afectacion_infraestructura_productiva: infraestructurasRurales.length > 0,
             observaciones_dano: obsAfectacionPartes.join(' ') || undefined,
             fotos_techo: fotosTecho.slice(0, 6),
             fotos_estructura: fotosEstructura.slice(0, 6),
@@ -2329,8 +2460,54 @@ export const CatastrofesView: React.FC = () => {
           fotos_evidencia: fotosEntrega.slice(0, 6),
         };
 
-        const res = await sacService.actualizarSolicitud(editingSolicitudId, payload);
-        showToast(`¡Solicitud ${editingSolicitudCodigo || `SOL-${editingSolicitudId}`} actualizada exitosamente!`, 'success');
+        await sacService.actualizarSolicitud(editingSolicitudId, payload);
+
+        if (registroModo === 'VISITA_TECNICA') {
+          const obsVisitaTexto = [
+            `[VERIFICACIÓN DE REPORTE: ${
+              visitaVerificacionReporte === 'CONFIRMADO'
+                ? 'Confirmado - Coincide con lo reportado en la solicitud'
+                : visitaVerificacionReporte === 'AJUSTADO'
+                  ? 'Ajustado en campo - Se modificó la evaluación tras inspección técnica'
+                  : 'Descartado - No se evidencia afectación atribuible al evento'
+            }]`,
+            visitaObservacionesTecnicas.trim() || otrosDanosDescripcion.trim() || observacionAfectacion.trim(),
+          ]
+            .filter(Boolean)
+            .join(' — ');
+
+          const resVisita = await sacService.registrarVisitaTecnica(editingSolicitudId, {
+            profesional_responsable:
+              (visitaProfesionalResponsable || `${user?.nombres || ''} ${user?.apellidos || ''}`).trim() ||
+              'Profesional Técnico SAD',
+            cargo_responsable: visitaCargoResponsable.trim() || 'Técnico / Ingeniero Gestión del Riesgo',
+            dictamen_tecnico:
+              visitaDictamenHabitabilidad ||
+              (evacuar ? 'NO_HABITABLE' : afectacionNivel === 'Grave' ? 'USO_CON_PRECAUCION' : 'HABITABLE'),
+            afectacion_muros: paredesDamageLevel,
+            afectacion_techos: techoDamageLevel,
+            afectacion_pisos: pisosDamageLevel,
+            requiere_evacuacion: evacuar,
+            requiere_demolicion: afectacionNivel === 'Colapso Total',
+            costo_estimado_danos:
+              (parseFloat(estimacionPerdidasPesos) || 0) +
+              infraestructurasRurales.reduce((acc, r) => acc + (Number(r.costo_estimado_reparacion) || 0), 0),
+            observaciones_tecnicas:
+              obsVisitaTexto || 'Visita técnica de verificación y re-evaluación de la vivienda realizada en terreno.',
+            fotos_evidencia: [...fotosTecho, ...fotosEstructura, ...fotosEntrega].slice(0, 6),
+            fotos_techo: fotosTecho.slice(0, 6),
+            fotos_estructura: fotosEstructura.slice(0, 6),
+            banco_materiales_json: bancoMateriales,
+            solicitado_por_materiales:
+              solicitadoPorMateriales.trim() || `${nombres.trim()} ${apellidos.trim()}`.trim() || undefined,
+          });
+          showToast(
+            `¡Visita Técnica #${resVisita.numero_visita || ''} registrada y evaluación de la vivienda ${editingSolicitudCodigo || `SOL-${editingSolicitudId}`} actualizada exitosamente!`,
+            'success'
+          );
+        } else {
+          showToast(`¡Solicitud ${editingSolicitudCodigo || `SOL-${editingSolicitudId}`} actualizada exitosamente!`, 'success');
+        }
         resetFormState();
       } else if (registroModo === 'SOLICITUD_SOLO') {
         const mappedItems = itemsAyuda
@@ -3692,7 +3869,7 @@ export const CatastrofesView: React.FC = () => {
                   </p>
                 </div>
               ) : (
-                filteredListarSolicitudes.map((sol: any) => {
+                paginatedListarSolicitudes.map((sol: any) => {
                   const isPending = sol.estado_codigo === 'pending';
                   const numVisitas = sol.total_visitas ?? (sol.visita ? 1 : 0);
                   const numEntregas = sol.total_entregas ?? (sol.tiene_entrega ? 1 : 0);
@@ -3782,7 +3959,7 @@ export const CatastrofesView: React.FC = () => {
                         </div>
                       </div>
 
-                      {/* Botones de Acción Directa: Ver Detalle, + Visita Técnica (1 o muchas), Atender (Entrega), Editar */}
+                      {/* Botones de Acción Directa: Ver Detalle, Visita Técnica (Re-evaluar Vivienda), Atender (Entrega), Editar */}
                       <div className="shrink-0 flex flex-wrap items-center gap-1.5 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
                         <button
                           type="button"
@@ -3800,14 +3977,12 @@ export const CatastrofesView: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => {
-                            setVisitaModalSolicitud(sol);
-                          }}
-                          className="px-2.5 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                          title="Realizar una nueva visita técnica a este inmueble (puedes registrar una o muchas visitas)"
+                          onClick={() => handleIniciarVisitaTecnica(sol)}
+                          className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                          title="Realizar visita técnica para re-evaluar la vivienda y verificar lo reportado en la solicitud"
                         >
                           <ClipboardCheck className="h-3.5 w-3.5" />
-                          <span>+ Visita Técnica ({numVisitas})</span>
+                          <span>Visita Técnica ({numVisitas})</span>
                         </button>
 
                         {!isCensoOnlyUser && (
@@ -3834,9 +4009,9 @@ export const CatastrofesView: React.FC = () => {
 
                         <button
                           type="button"
-                          onClick={() => handleSelectSolicitudDesdeListar(sol)}
+                          onClick={() => handleEditarSolicitud(sol, 'SOLICITUD_SOLO')}
                           className="px-2.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
-                          title="Cargar en el formulario para editar censo / RUFE / evaluación"
+                          title="Cargar en el formulario para editar datos generales de la solicitud"
                         >
                           <Pencil className="h-3.5 w-3.5 text-amber-700" />
                           <span>Editar</span>
@@ -3848,18 +4023,82 @@ export const CatastrofesView: React.FC = () => {
               )}
             </div>
 
-            {/* Footer */}
-            <div className="flex items-center justify-between pt-3 border-t border-slate-100">
-              <span className="text-[11px] text-slate-500">
-                💡 Puedes registrar <strong>una o múltiples visitas técnicas</strong> y <strong>entregas de ayudas</strong> para cada solicitud.
-              </span>
-              <button
-                type="button"
-                onClick={() => setIsListarModalOpen(false)}
-                className="px-4 py-2 rounded-xl border border-[#D2D2D7] bg-white hover:bg-slate-50 text-xs font-semibold text-slate-700 cursor-pointer transition"
-              >
-                Cerrar
-              </button>
+            {/* Footer con Paginación Optimizada */}
+            <div className="flex flex-col sm:flex-row items-center justify-between gap-3 pt-3 border-t border-slate-200 text-xs">
+              <div className="flex flex-wrap items-center gap-2 text-slate-600">
+                <span>
+                  Mostrando{' '}
+                  <strong className="text-slate-900">
+                    {filteredListarSolicitudes.length === 0
+                      ? 0
+                      : (listarCurrentPage - 1) * listarPageSize + 1}
+                    –{Math.min(listarCurrentPage * listarPageSize, filteredListarSolicitudes.length)}
+                  </strong>{' '}
+                  de <strong className="text-slate-900">{filteredListarSolicitudes.length}</strong> solicitudes
+                </span>
+                <select
+                  value={listarPageSize}
+                  onChange={(e) => {
+                    setListarPageSize(Number(e.target.value));
+                    setListarCurrentPage(1);
+                  }}
+                  className="px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-[11px] font-bold text-slate-700 outline-none cursor-pointer"
+                >
+                  <option value={10}>10 por pág.</option>
+                  <option value={20}>20 por pág.</option>
+                  <option value={50}>50 por pág.</option>
+                </select>
+              </div>
+
+              <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                <button
+                  type="button"
+                  disabled={listarCurrentPage <= 1}
+                  onClick={() => setListarCurrentPage(1)}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Primera página"
+                >
+                  «
+                </button>
+                <button
+                  type="button"
+                  disabled={listarCurrentPage <= 1}
+                  onClick={() => setListarCurrentPage((p) => Math.max(1, p - 1))}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  ‹ Anterior
+                </button>
+
+                <span className="px-3 py-1.5 rounded-lg bg-blue-50 border border-blue-200 text-[11px] font-black text-[#007AFF]">
+                  Pág. {listarCurrentPage} / {totalListarPages}
+                </span>
+
+                <button
+                  type="button"
+                  disabled={listarCurrentPage >= totalListarPages}
+                  onClick={() => setListarCurrentPage((p) => Math.min(totalListarPages, p + 1))}
+                  className="px-3 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  Siguiente ›
+                </button>
+                <button
+                  type="button"
+                  disabled={listarCurrentPage >= totalListarPages}
+                  onClick={() => setListarCurrentPage(totalListarPages)}
+                  className="px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white hover:bg-slate-50 text-[11px] font-bold text-slate-700 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  title="Última página"
+                >
+                  »
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setIsListarModalOpen(false)}
+                  className="ml-2 px-4 py-1.5 rounded-xl border border-[#D2D2D7] bg-slate-100 hover:bg-slate-200 text-xs font-bold text-slate-800 cursor-pointer transition"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -4158,8 +4397,11 @@ export const CatastrofesView: React.FC = () => {
             fetchSolicitudes();
           }}
           onEditarSolicitud={(det) => {
-            handleEditarSolicitud(det);
+            handleEditarSolicitud(det, 'SOLICITUD_SOLO');
             setFormStepTab(1);
+          }}
+          onIniciarVisitaTecnica={(det) => {
+            handleIniciarVisitaTecnica(det);
           }}
           onEditarEntrega={(ent, det) => handleEditarEntrega(ent, det)}
           onAtenderSolicitud={(det) => {
@@ -5079,16 +5321,11 @@ export const CatastrofesView: React.FC = () => {
                         <span className="px-2.5 py-0.5 rounded-full text-[10px] font-bold bg-[#FF3B30]/12 text-[#FF3B30]">
                           SAD Móvil
                         </span>
-                        {borradorGuardadoHora && (
-                          <span className="px-2.5 py-0.5 rounded-full text-[10px] font-semibold bg-[#34C759]/12 text-[#34C759]">
-                            Borrador {borradorGuardadoHora}
-                          </span>
-                        )}
                       </div>
                     </div>
                   </div>
 
-                  {/* Right Action Buttons: Cambiar Evento, Guardar Borrador, Limpiar Formulario, Registrar Solicitud */}
+                  {/* Right Action Buttons: Cambiar Evento, Listar, Limpiar Formulario, Registrar Solicitud */}
                   <div className="flex items-center gap-2 flex-wrap shrink-0">
                     {eventos.length > 0 && (
                       <div className="flex items-center gap-1.5 bg-[#F5F5F7] border border-[#D2D2D7] rounded-[10px] px-2.5 py-1.5">
@@ -5116,32 +5353,11 @@ export const CatastrofesView: React.FC = () => {
                       type="button"
                       onClick={openListarModal}
                       className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#D2D2D7] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                      title="Listar y cargar solicitud en el formulario"
+                      title="Listar solicitudes para Atender, hacer Visita Técnica o Editar"
                     >
                       <List className="h-3.5 w-3.5 text-[#007AFF]" />
-                      <span>Listar</span>
+                      <span>Listar ({todasSolicitudes.length})</span>
                     </button>
-
-                    <button
-                      type="button"
-                      onClick={handleGuardarBorrador}
-                      className="px-3.5 py-2 rounded-[10px] bg-white hover:bg-[#F5F5F7] text-[#1D1D1F] border border-[#D2D2D7] text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                    >
-                      <Save className="h-3.5 w-3.5 text-[#6E6E73]" />
-                      <span>Guardar borrador</span>
-                    </button>
-
-                    {borradorGuardadoHora && (
-                      <button
-                        type="button"
-                        onClick={handleCargarBorrador}
-                        className="px-3.5 py-2 rounded-[10px] bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 text-xs font-semibold flex items-center gap-1.5 transition cursor-pointer"
-                        title="Restaurar formulario desde el borrador local"
-                      >
-                        <RotateCcw className="h-3.5 w-3.5 text-emerald-600" />
-                        <span>Restaurar ({borradorGuardadoHora})</span>
-                      </button>
-                    )}
 
                     <button
                       type="button"
@@ -5156,75 +5372,90 @@ export const CatastrofesView: React.FC = () => {
                     <button
                       type="submit"
                       disabled={submitting}
-                      className="px-4 py-2 rounded-[10px] bg-[#007AFF] hover:bg-[#0062CC] text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50"
+                      className={`px-4 py-2 rounded-[10px] text-white text-xs font-semibold shadow-xs flex items-center gap-1.5 transition cursor-pointer disabled:opacity-50 ${
+                        registroModo === 'VISITA_TECNICA'
+                          ? 'bg-indigo-600 hover:bg-indigo-700'
+                          : 'bg-[#007AFF] hover:bg-[#0062CC]'
+                      }`}
                     >
                       <Check className="h-4 w-4" />
                       <span>
-                        {editingSolicitudId
-                          ? 'Guardar Cambios'
-                          : registroModo === 'SOLICITUD_SOLO'
-                            ? 'Registrar Solicitud'
-                            : 'Confirmar Entrega'}
+                        {registroModo === 'VISITA_TECNICA'
+                          ? 'Guardar Visita Técnica y Evaluación'
+                          : editingSolicitudId
+                            ? 'Guardar Cambios'
+                            : registroModo === 'SOLICITUD_SOLO'
+                              ? 'Registrar Solicitud'
+                              : 'Confirmar Entrega'}
                       </span>
                     </button>
                   </div>
                 </div>
 
-                {/* Macro Stepper / Mode Banner */}
-                {(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO') && (
-                  <div className="grid grid-cols-3 border-t border-[#E5E5EA] pt-3 gap-2">
-                    {[
-                      {
-                        stage: 1,
-                        label: 'Registro de la Solicitud',
-                        active: formStepTab <= 4 && registroModo === 'SOLICITUD_SOLO',
-                        onClick: () => {
-                          if (!isEntregaOnlyUser) setRegistroModo('SOLICITUD_SOLO');
-                          setFormStepTab(1);
-                        },
+                {/* Macro Stepper / Mode Selector: 1. Registro de Solicitud | 2. Visita Técnica (Re-evaluar Vivienda) | 3. Atender (Entrega de Ayudas) */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 border-t border-[#E5E5EA] pt-3 gap-2">
+                  {[
+                    {
+                      stage: 1,
+                      label: 'Registrar Solicitud y Afectación',
+                      active: registroModo === 'SOLICITUD_SOLO',
+                      onClick: () => {
+                        if (!isEntregaOnlyUser) setRegistroModo('SOLICITUD_SOLO');
+                        setFormStepTab(1);
                       },
-                      {
-                        stage: 2,
-                        label: 'Entrega de Ayudas',
-                        active: formStepTab === 5 || registroModo !== 'SOLICITUD_SOLO',
-                        onClick: () => {
+                    },
+                    {
+                      stage: 2,
+                      label: 'Visita Técnica (Re-evaluar Vivienda)',
+                      active: registroModo === 'VISITA_TECNICA',
+                      onClick: () => {
+                        setRegistroModo('VISITA_TECNICA');
+                        setFormStepTab(4);
+                        if (!editingSolicitudId) {
+                          openListarModal();
+                        }
+                      },
+                    },
+                    {
+                      stage: 3,
+                      label: 'Atender Solicitud (Entrega de Ayudas)',
+                      active: registroModo === 'ENTREGA_EXISTENTE' || registroModo === 'ENTREGA_DIRECTA',
+                      onClick: () => {
+                        if (!isCensoOnlyUser) {
+                          setRegistroModo('ENTREGA_EXISTENTE');
                           setFormStepTab(5);
-                        },
+                        }
                       },
-                      {
-                        stage: 3,
-                        label: 'Evidencias y Cierre',
-                        active: formStepTab === 6,
-                        onClick: () => {
-                          setFormStepTab(6);
-                        },
-                      },
-                    ].map((st) => (
-                      <button
-                        key={st.stage}
-                        type="button"
-                        onClick={st.onClick}
-                        className={`pb-2.5 border-b-2 flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer ${st.active
+                    },
+                  ].map((st) => (
+                    <button
+                      key={st.stage}
+                      type="button"
+                      onClick={st.onClick}
+                      className={`pb-2.5 border-b-2 flex items-center justify-center gap-2 text-xs font-semibold transition cursor-pointer ${
+                        st.active
                           ? 'border-[#007AFF] text-[#1D1D1F] font-bold'
                           : 'border-transparent text-[#6E6E73] hover:text-[#1D1D1F]'
-                          }`}
+                      }`}
+                    >
+                      <span
+                        className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${
+                          st.active ? 'bg-[#007AFF] text-white' : 'bg-[#F5F5F7] text-[#6E6E73]'
+                        }`}
                       >
-                        <span
-                          className={`w-5 h-5 rounded-full text-[11px] font-bold flex items-center justify-center ${st.active ? 'bg-[#007AFF] text-white' : 'bg-[#F5F5F7] text-[#6E6E73]'
-                            }`}
-                        >
-                          {st.stage}
-                        </span>
-                        <span className="truncate">{st.label}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
+                        {st.stage}
+                      </span>
+                      <span className="truncate">{st.label}</span>
+                    </button>
+                  ))}
+                </div>
 
-                {/* Form Navigation Bar: 4 Pestañas en Solicitud Inicial (Datos del Evento | Núcleo Familiar | RUFE | Afectación del Inmueble) */}
+                {/* Form Navigation Bar: 4 Pestañas en Solicitud Inicial / Visita Técnica */}
                 <div
                   className={`grid gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA] ${
-                    HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO'
+                    HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
+                    registroModo === 'ENTREGA_EXISTENTE' ||
+                    registroModo === 'ENTREGA_DIRECTA'
                       ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
                       : 'grid-cols-2 sm:grid-cols-4'
                   }`}
@@ -5233,8 +5464,17 @@ export const CatastrofesView: React.FC = () => {
                     { step: 1, label: 'Datos del Evento', icon: User },
                     { step: 2, label: 'Núcleo Familiar', icon: Users },
                     { step: 3, label: 'RUFE', icon: FileText },
-                    { step: 4, label: 'Afectación del Inmueble', icon: Home },
-                    ...(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL || registroModo !== 'SOLICITUD_SOLO'
+                    {
+                      step: 4,
+                      label:
+                        registroModo === 'VISITA_TECNICA'
+                          ? 'Visita Técnica y Re-evaluación'
+                          : 'Afectación del Inmueble',
+                      icon: Home,
+                    },
+                    ...(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
+                    registroModo === 'ENTREGA_EXISTENTE' ||
+                    registroModo === 'ENTREGA_DIRECTA'
                       ? ([
                           { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
                           { step: 6, label: 'Observaciones', icon: Camera },
@@ -5265,8 +5505,8 @@ export const CatastrofesView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Banner de Modo Edición */}
-              {(editingSolicitudId || editingEntregaId) && (
+              {/* Banner de Modo Edición (cuando NO es Visita Técnica) */}
+              {(editingSolicitudId || editingEntregaId) && registroModo !== 'VISITA_TECNICA' && (
                 <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white rounded-3xl p-4 sm:p-5 shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
@@ -5296,6 +5536,260 @@ export const CatastrofesView: React.FC = () => {
                       <span>Cancelar Edición</span>
                     </button>
                   </div>
+                </div>
+              )}
+
+              {/* Selector y Panel de Visita Técnica (Re-evaluación de la Vivienda) */}
+              {registroModo === 'VISITA_TECNICA' && (
+                <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-indigo-200 space-y-4">
+                  {!editingSolicitudId ? (
+                    <div className="p-6 bg-indigo-50/70 border border-indigo-200 rounded-2xl text-center space-y-3">
+                      <div className="w-11 h-11 rounded-2xl bg-indigo-100 text-indigo-700 flex items-center justify-center mx-auto shadow-2xs">
+                        <ClipboardCheck className="h-5 w-5" />
+                      </div>
+                      <div className="max-w-lg mx-auto space-y-1">
+                        <h4 className="font-extrabold text-sm text-slate-900">
+                          Seleccionar Solicitud para Visita Técnica y Re-evaluación de Vivienda
+                        </h4>
+                        <p className="text-xs text-slate-600">
+                          Elija una solicitud registrada para verificar en terreno si lo reportado es cierto, actualizar la evaluación del inmueble, infraestructura rural y Banco de Materiales.
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-center gap-2 flex-wrap">
+                        <button
+                          type="button"
+                          onClick={openListarModal}
+                          className="px-5 py-2.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl text-xs font-black shadow-sm transition cursor-pointer inline-flex items-center gap-2"
+                        >
+                          <List className="h-4 w-4" />
+                          <span>Seleccionar Solicitud del Listado ({todasSolicitudes.length})</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setRegistroModo('SOLICITUD_SOLO');
+                            setFormStepTab(1);
+                          }}
+                          className="px-4 py-2.5 bg-white hover:bg-slate-100 text-slate-700 border border-slate-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                        >
+                          Volver a Nueva Solicitud
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {/* Cabecera de la Visita Técnica Activa */}
+                      <div className="p-4 bg-gradient-to-r from-indigo-50 via-blue-50/70 to-indigo-50 border border-indigo-200 rounded-2xl space-y-3">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-indigo-200/70 pb-3">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="font-mono text-xs font-black text-white bg-indigo-600 px-3 py-1 rounded-xl shadow-2xs">
+                              {editingSolicitudCodigo || `SOL-${editingSolicitudId}`}
+                            </span>
+                            <span className="px-2.5 py-1 rounded-full bg-indigo-100 text-indigo-900 border border-indigo-300 text-xs font-black flex items-center gap-1.5">
+                              <ClipboardCheck className="h-3.5 w-3.5 text-indigo-700" />
+                              <span>
+                                Visita Técnica #{(reporteInicialSnapshot?.total_visitas_previas || 0) + 1} — Re-evaluación de Vivienda en Terreno
+                              </span>
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setVisitaModalSolicitud({
+                                  id_solicitud: editingSolicitudId,
+                                  codigo_solicitud: editingSolicitudCodigo,
+                                })
+                              }
+                              className="px-3 py-1.5 bg-white hover:bg-indigo-100 text-indigo-800 border border-indigo-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                              title="Abrir también la ficha técnica detallada de 10 pasos"
+                            >
+                              <FileText className="h-3.5 w-3.5" />
+                              <span>Ficha Detallada (10 pasos)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={openListarModal}
+                              className="px-3 py-1.5 bg-white hover:bg-blue-50 text-blue-800 border border-blue-200 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                            >
+                              <Search className="h-3.5 w-3.5" />
+                              <span>Cambiar Solicitud</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                resetFormState();
+                                setRegistroModo('SOLICITUD_SOLO');
+                                setFormStepTab(1);
+                              }}
+                              className="px-3 py-1.5 bg-white hover:bg-rose-50 text-rose-600 border border-rose-200 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                            >
+                              <X className="h-3.5 w-3.5" />
+                              <span>Salir</span>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Comparativo: Datos del Solicitante y Lo Reportado Inicialmente */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5 text-xs">
+                          <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Solicitante Censado</span>
+                            <strong className="text-slate-900 font-extrabold text-xs block truncate">
+                              {nombres} {apellidos}
+                            </strong>
+                            <span className="text-slate-500 text-[11px]">
+                              Doc: <strong className="font-mono text-slate-700">{documento}</strong>
+                              {telefono ? ` • Tel: ${telefono}` : ''}
+                            </span>
+                          </div>
+
+                          <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">Ubicación del Predio</span>
+                            <strong className="text-slate-900 font-bold block truncate">
+                              {sectores.find((s) => s.id_sector === sectorId)?.nombre_sector || 'Sector verificado'}
+                            </strong>
+                            <span className="text-slate-500 text-[11px] block truncate">
+                              {direccion || observacionSector || 'Dirección registrada'}
+                            </span>
+                          </div>
+
+                          <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Reporte Inicial en Solicitud
+                            </span>
+                            <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+                              <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-800 font-extrabold text-[11px]">
+                                Global: {reporteInicialSnapshot?.nivel_vivienda || 'Ninguno'}
+                              </span>
+                              <span className="text-[11px] text-slate-600">
+                                Techo: <strong>{reporteInicialSnapshot?.nivel_techo || 'Ninguno'}</strong> • Muros:{' '}
+                                <strong>{reporteInicialSnapshot?.nivel_paredes || 'Ninguno'}</strong>
+                              </span>
+                            </div>
+                          </div>
+
+                          <div className="bg-white p-3 rounded-xl border border-indigo-100">
+                            <span className="text-[10px] uppercase font-bold text-slate-400 block">
+                              Historial de Visitas Técnicas
+                            </span>
+                            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 bg-indigo-50 text-indigo-900 border border-indigo-200 rounded-lg text-[11px] font-black mt-0.5">
+                              <ClipboardCheck className="h-3.5 w-3.5 text-indigo-600" />
+                              <span>{reporteInicialSnapshot?.total_visitas_previas || 0} visita(s) previa(s)</span>
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Verificación de veracidad de lo reportado y Datos del Profesional */}
+                        <div className="p-3.5 bg-white rounded-xl border border-indigo-200/80 space-y-3">
+                          <div className="space-y-1.5">
+                            <label className="block text-xs font-extrabold text-slate-900">
+                              1. Verificación en Terreno: ¿Lo reportado en la solicitud corresponde a la realidad del inmueble?
+                            </label>
+                            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                              {([
+                                {
+                                  id: 'CONFIRMADO',
+                                  title: '✓ Confirmado en campo',
+                                  desc: 'Lo reportado en la solicitud es cierto y coincide con la inspección.',
+                                  activeStyle: 'border-emerald-500 bg-emerald-50/70 text-emerald-950 ring-2 ring-emerald-500/15',
+                                },
+                                {
+                                  id: 'AJUSTADO',
+                                  title: '⚡ Ajustado / Re-evaluado',
+                                  desc: 'Se modifican los niveles de daño abajo según lo verificado en la visita.',
+                                  activeStyle: 'border-amber-500 bg-amber-50/70 text-amber-950 ring-2 ring-amber-500/15',
+                                },
+                                {
+                                  id: 'DESCARTADO',
+                                  title: '✕ Sin afectación por el evento',
+                                  desc: 'No se evidencian daños atribuibles a la emergencia reportada.',
+                                  activeStyle: 'border-rose-500 bg-rose-50/70 text-rose-950 ring-2 ring-rose-500/15',
+                                },
+                              ] as const).map((verOpt) => {
+                                const isSel = visitaVerificacionReporte === verOpt.id;
+                                return (
+                                  <button
+                                    key={verOpt.id}
+                                    type="button"
+                                    onClick={() => {
+                                      setVisitaVerificacionReporte(verOpt.id);
+                                      if (verOpt.id === 'DESCARTADO') {
+                                        setAfectacionNivel('Ninguno');
+                                        setTechoDamageLevel('Ninguno');
+                                        setParedesDamageLevel('Ninguno');
+                                        setPisosDamageLevel('Ninguno');
+                                      }
+                                    }}
+                                    className={`p-2.5 rounded-xl border text-left transition cursor-pointer ${
+                                      isSel ? verOpt.activeStyle : 'border-slate-200 bg-slate-50/60 hover:bg-white'
+                                    }`}
+                                  >
+                                    <div className="text-xs font-extrabold">{verOpt.title}</div>
+                                    <div className="text-[10px] text-slate-600 mt-0.5 leading-snug">{verOpt.desc}</div>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-1">
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Profesional / Evaluador que realiza la Visita *
+                              </label>
+                              <input
+                                type="text"
+                                value={visitaProfesionalResponsable}
+                                onChange={(e) => setVisitaProfesionalResponsable(e.target.value)}
+                                placeholder="Nombre del ingeniero o técnico"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Cargo / Dependencia
+                              </label>
+                              <input
+                                type="text"
+                                value={visitaCargoResponsable}
+                                onChange={(e) => setVisitaCargoResponsable(e.target.value)}
+                                placeholder="Ej. Obras Públicas / Gestión del Riesgo"
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+                              />
+                            </div>
+                            <div>
+                              <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                Dictamen de Habitabilidad en la Visita
+                              </label>
+                              <select
+                                value={visitaDictamenHabitabilidad}
+                                onChange={(e) => setVisitaDictamenHabitabilidad(e.target.value)}
+                                className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold text-slate-900 focus:bg-white focus:border-indigo-500 outline-none cursor-pointer"
+                              >
+                                <option value="HABITABLE">🟢 Habitable / Seguro</option>
+                                <option value="USO_CON_PRECAUCION">🟡 Habitable con precaución / Reparación menor</option>
+                                <option value="NO_HABITABLE">🟠 No habitable / Requiere evacuación preventiva</option>
+                                <option value="COLAPSO_DEMOLICION">🔴 Colapso o riesgo inminente / Demolición</option>
+                              </select>
+                            </div>
+                          </div>
+
+                          <div>
+                            <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                              Concepto Técnico / Hallazgos de esta Visita Técnica
+                            </label>
+                            <input
+                              type="text"
+                              value={visitaObservacionesTecnicas}
+                              onChange={(e) => setVisitaObservacionesTecnicas(e.target.value)}
+                              placeholder="Describa lo verificado en la visita (ej. se constata daño en cubierta y muros, se actualiza nivel de afectación y materiales)..."
+                              className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-indigo-500 outline-none"
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -7387,173 +7881,425 @@ export const CatastrofesView: React.FC = () => {
                                   </div>
                                 )}
 
-                                {/* Formulario para Infraestructura Rural / Finca */}
-                                {(tipoInmuebleActual === 'Finca' || esFinca || sectorZoneFilter === 'rural') && (
-                                  <div className="p-4 bg-emerald-50/70 rounded-2xl border border-emerald-300 space-y-3 shadow-2xs">
-                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-2">
+                                {/* Formulario para Infraestructura Rural / Finca: Selección de qué se dañó y su severidad (Leve, Moderado, Grave, Colapso Total) */}
+                                {(tipoInmuebleActual === 'Finca' || esFinca || isSelectedSectorRural || sectorZoneFilter === 'rural' || infraestructurasRurales.length > 0) && (
+                                  <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-4 shadow-2xs">
+                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-2.5">
                                       <div>
-                                        <span className="font-extrabold text-emerald-950 text-xs flex items-center gap-1.5 uppercase tracking-wide">
+                                        <span className="font-extrabold text-emerald-950 text-xs sm:text-sm flex items-center gap-1.5">
                                           <Leaf className="h-4 w-4 text-emerald-700" />
-                                          <span>Instalaciones Afectadas en Finca / Predio Rural</span>
+                                          <span>Daños en Finca / Predio Rural (Seleccione qué instalaciones sufrieron afectación)</span>
                                         </span>
-                                        <span className="text-[10px] text-emerald-800">
-                                          Registra establos, cocheras, beneficiaderos, casillas de secado, galpones y silos afectados.
+                                        <span className="text-[11px] text-emerald-800 block mt-0.5">
+                                          Marque los componentes afectados en la finca para habilitar su nivel de daño (Leve, Moderado, Grave o Colapso Total).
                                         </span>
                                       </div>
-                                      <button
-                                        type="button"
-                                        onClick={() => {
-                                          setInfraestructurasRurales([
-                                            ...infraestructurasRurales,
-                                            {
-                                              tipo_infraestructura: 'Beneficiadero de café',
-                                              estado_dano: 'Grave',
-                                              observaciones: '',
-                                              costo_estimado_reparacion: 0,
-                                            },
-                                          ]);
-                                        }}
-                                        className="px-3 py-1.5 bg-emerald-700 hover:bg-emerald-800 text-white rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-xs"
-                                      >
-                                        <Plus className="h-3.5 w-3.5" />
-                                        <span>+ Agregar Instalación</span>
-                                      </button>
+                                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-extrabold">
+                                        {infraestructurasRurales.length} elemento(s) con daño
+                                      </span>
                                     </div>
 
-                                    {/* Botones de Selección Rápida de Instalaciones Agropecuarias */}
-                                    <div className="flex flex-wrap items-center gap-1.5 pt-1 pb-1">
-                                      <span className="text-[10px] font-bold text-emerald-900 uppercase">Añadir con 1 clic:</span>
+                                    {/* 5 Elementos Principales de la Finca: Casa, Beneficiadero de café, Casa de agregados, Bodega de insumos, Infraestructura pecuaria */}
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                       {[
-                                        { label: '☕ Beneficiadero', tipo: 'Beneficiadero de café' },
-                                        { label: '🛖 Casilla de secado', tipo: 'Casilla de secado / Elba / Pasera' },
-                                        { label: '🐄 Establo / Corral', tipo: 'Establo / Corral' },
-                                        { label: '🐷 Cochera / Porqueriza', tipo: 'Porqueriza / Cochera' },
-                                        { label: '🐔 Galpón avícola', tipo: 'Galpón avícola / Gallinero' },
-                                        { label: '🌾 Silo / Marquesina', tipo: 'Secadero / Marquesina / Silo' },
-                                        { label: '💧 Tanque / Bocatoma', tipo: 'Tanque de reserva / Bocatoma / Acueducto' },
-                                        { label: '🍬 Trapiche panelero', tipo: 'Trapiche panelero / Enramada' },
-                                        { label: '📦 Bodega insumos', tipo: 'Bodega de insumos / Herramientas' },
-                                      ].map((btn) => (
-                                        <button
-                                          key={btn.tipo}
-                                          type="button"
-                                          onClick={() => {
-                                            setInfraestructurasRurales([
-                                              ...infraestructurasRurales,
-                                              {
-                                                tipo_infraestructura: btn.tipo,
-                                                estado_dano: 'Grave',
-                                                observaciones: '',
-                                                costo_estimado_reparacion: 0,
-                                              },
-                                            ]);
-                                            showToast(`Añadida instalación: ${btn.label}`, 'success');
-                                          }}
-                                          className="px-2.5 py-1 rounded-xl bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-bold transition cursor-pointer shadow-2xs hover:border-emerald-400"
-                                        >
-                                          {btn.label}
-                                        </button>
-                                      ))}
+                                        {
+                                          tipo: 'Casa',
+                                          titulo: 'Casa principal (Vivienda de la finca)',
+                                          sub: 'Estructura habitacional principal del predio rural',
+                                          icono: '🏠',
+                                        },
+                                        {
+                                          tipo: 'Beneficiadero de café',
+                                          titulo: 'Beneficiadero de café',
+                                          sub: 'Tolvas, tanques, despulpadora, secadero o cubierta',
+                                          icono: '☕',
+                                        },
+                                        {
+                                          tipo: 'Casa de agregados',
+                                          titulo: 'Casa de agregados',
+                                          sub: 'Vivienda de trabajadores, mayordomo o campamento',
+                                          icono: '🏡',
+                                        },
+                                        {
+                                          tipo: 'Bodega de insumos',
+                                          titulo: 'Bodega de insumos',
+                                          sub: 'Cuarto de herramientas, abonos, semillas o equipos',
+                                          icono: '📦',
+                                        },
+                                        {
+                                          tipo: 'Infraestructura pecuaria',
+                                          titulo: 'Infraestructura pecuaria',
+                                          sub: 'Establos, cocheras / porquerizas, galpones, corrales',
+                                          icono: '🐄',
+                                        },
+                                      ].map((itemFinca) => {
+                                        const foundIdx = infraestructurasRurales.findIndex(
+                                          (r) => r.tipo_infraestructura.toLowerCase() === itemFinca.tipo.toLowerCase()
+                                        );
+                                        const isSelected = foundIdx !== -1;
+                                        const currentObj = isSelected ? infraestructurasRurales[foundIdx] : null;
+                                        const estadoActual =
+                                          currentObj?.estado_dano === 'Parcial'
+                                            ? 'Moderado'
+                                            : currentObj?.estado_dano || 'Moderado';
+
+                                        return (
+                                          <div
+                                            key={itemFinca.tipo}
+                                            className={`rounded-2xl border-2 transition-all p-3.5 space-y-3 ${
+                                              isSelected
+                                                ? 'bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/15'
+                                                : 'bg-white/80 border-slate-200 hover:border-emerald-300'
+                                            }`}
+                                          >
+                                            <label className="flex items-start justify-between gap-2.5 cursor-pointer select-none">
+                                              <div className="flex items-start gap-2.5">
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelected}
+                                                  onChange={(e) => {
+                                                    if (e.target.checked) {
+                                                      setInfraestructurasRurales([
+                                                        ...infraestructurasRurales,
+                                                        {
+                                                          tipo_infraestructura: itemFinca.tipo,
+                                                          estado_dano: 'Moderado',
+                                                          observaciones: '',
+                                                          costo_estimado_reparacion: 0,
+                                                        },
+                                                      ]);
+                                                    } else {
+                                                      setInfraestructurasRurales(
+                                                        infraestructurasRurales.filter((_, i) => i !== foundIdx)
+                                                      );
+                                                    }
+                                                  }}
+                                                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
+                                                />
+                                                <div>
+                                                  <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                                    <span>{itemFinca.icono}</span>
+                                                    <span>{itemFinca.titulo}</span>
+                                                  </div>
+                                                  <span className="text-[10px] text-slate-500 block mt-0.5">
+                                                    {itemFinca.sub}
+                                                  </span>
+                                                </div>
+                                              </div>
+                                              {isSelected && (
+                                                <span
+                                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
+                                                    estadoActual === 'Colapso Total'
+                                                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
+                                                      : estadoActual === 'Grave'
+                                                        ? 'bg-orange-100 text-orange-800 border border-orange-300'
+                                                        : estadoActual === 'Moderado'
+                                                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
+                                                          : 'bg-slate-100 text-slate-700 border border-slate-300'
+                                                  }`}
+                                                >
+                                                  {estadoActual}
+                                                </span>
+                                              )}
+                                            </label>
+
+                                            {/* Controles habilitados cuando se selecciona que este elemento se dañó */}
+                                            {isSelected && currentObj && (
+                                              <div className="pt-2.5 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-150">
+                                                <div>
+                                                  <span className="block text-[10px] font-bold text-slate-600 uppercase mb-1.5">
+                                                    Seleccione la severidad del daño en {itemFinca.tipo}:
+                                                  </span>
+                                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
+                                                    {([
+                                                      { val: 'Leve', label: 'Leve', style: 'bg-amber-100 text-amber-950 border-amber-400' },
+                                                      { val: 'Moderado', label: 'Moderado', style: 'bg-orange-500 text-white border-orange-600' },
+                                                      { val: 'Grave', label: 'Grave', style: 'bg-rose-600 text-white border-rose-700' },
+                                                      { val: 'Colapso Total', label: 'Pérdida Total', style: 'bg-slate-900 text-white border-slate-950' },
+                                                    ] as const).map((sev) => {
+                                                      const activeSev = estadoActual === sev.val;
+                                                      return (
+                                                        <button
+                                                          key={sev.val}
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const copy = [...infraestructurasRurales];
+                                                            copy[foundIdx] = {
+                                                              ...copy[foundIdx],
+                                                              estado_dano: sev.val,
+                                                            };
+                                                            setInfraestructurasRurales(copy);
+                                                          }}
+                                                          className={`py-1.5 px-2 rounded-xl text-[11px] font-extrabold border transition cursor-pointer ${
+                                                            activeSev
+                                                              ? `${sev.style} shadow-2xs`
+                                                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
+                                                          }`}
+                                                        >
+                                                          {sev.label}
+                                                        </button>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                </div>
+
+                                                {itemFinca.tipo === 'Infraestructura pecuaria' && (
+                                                  <div className="flex flex-wrap items-center gap-1">
+                                                    <span className="text-[10px] font-bold text-slate-500 mr-1">Subtipo:</span>
+                                                    {['Establos', 'Cocheras / Porquerizas', 'Galpones avícolas', 'Corrales'].map((subPec) => {
+                                                      const obsActual = currentObj.observaciones || '';
+                                                      const incluido = obsActual.toLowerCase().includes(subPec.toLowerCase());
+                                                      return (
+                                                        <button
+                                                          key={subPec}
+                                                          type="button"
+                                                          onClick={() => {
+                                                            const copy = [...infraestructurasRurales];
+                                                            const prevObs = copy[foundIdx].observaciones || '';
+                                                            copy[foundIdx].observaciones = incluido
+                                                              ? prevObs
+                                                              : prevObs
+                                                                ? `${prevObs}, ${subPec}`
+                                                                : subPec;
+                                                            setInfraestructurasRurales(copy);
+                                                          }}
+                                                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                                            incluido
+                                                              ? 'bg-emerald-600 text-white border-emerald-700'
+                                                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
+                                                          }`}
+                                                        >
+                                                          + {subPec}
+                                                        </button>
+                                                      );
+                                                    })}
+                                                  </div>
+                                                )}
+
+                                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
+                                                  <div className="sm:col-span-8">
+                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
+                                                      Detalle del daño (Opcional)
+                                                    </label>
+                                                    <input
+                                                      type="text"
+                                                      placeholder={`Describa qué se dañó en ${itemFinca.tipo.toLowerCase()}...`}
+                                                      value={currentObj.observaciones || ''}
+                                                      onChange={(e) => {
+                                                        const copy = [...infraestructurasRurales];
+                                                        copy[foundIdx] = {
+                                                          ...copy[foundIdx],
+                                                          observaciones: e.target.value,
+                                                        };
+                                                        setInfraestructurasRurales(copy);
+                                                      }}
+                                                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 outline-none"
+                                                    />
+                                                  </div>
+                                                  <div className="sm:col-span-4">
+                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
+                                                      Costo Est. ($ COP)
+                                                    </label>
+                                                    <input
+                                                      type="number"
+                                                      min="0"
+                                                      step="50000"
+                                                      placeholder="0"
+                                                      value={currentObj.costo_estimado_reparacion || ''}
+                                                      onChange={(e) => {
+                                                        const copy = [...infraestructurasRurales];
+                                                        copy[foundIdx] = {
+                                                          ...copy[foundIdx],
+                                                          costo_estimado_reparacion: Number(e.target.value) || 0,
+                                                        };
+                                                        setInfraestructurasRurales(copy);
+                                                      }}
+                                                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-emerald-800 focus:bg-white focus:border-emerald-500 outline-none"
+                                                    />
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            )}
+                                          </div>
+                                        );
+                                      })}
                                     </div>
 
-                                    {infraestructurasRurales.length === 0 ? (
-                                      <p className="text-[11px] text-slate-500 italic bg-white/70 p-3 rounded-xl border border-dashed border-emerald-200 text-center">
-                                        No se han agregado instalaciones agropecuarias. Haz clic en cualquiera de los botones rápidos de arriba o en '+ Agregar Instalación'.
-                                      </p>
-                                    ) : (
-                                      <div className="space-y-2">
-                                        {infraestructurasRurales.map((inf, idx) => (
-                                          <div key={idx} className="p-3 bg-white rounded-xl border border-emerald-200 shadow-2xs space-y-2">
-                                            <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center text-xs">
-                                              <div className="sm:col-span-5">
-                                                <label className="block text-[9px] font-bold text-slate-500 uppercase">Tipo de Instalación Rural</label>
-                                                <select
-                                                  value={inf.tipo_infraestructura}
-                                                  onChange={(e) => {
-                                                    const copy = [...infraestructurasRurales];
-                                                    copy[idx].tipo_infraestructura = e.target.value;
-                                                    setInfraestructurasRurales(copy);
-                                                  }}
-                                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white"
-                                                >
-                                                  <option value="Beneficiadero de café">☕ Beneficiadero de café</option>
-                                                  <option value="Casilla de secado / Elba / Pasera">🛖 Casilla de secado / Elba / Pasera</option>
-                                                  <option value="Establo / Corral">🐄 Establo / Corral</option>
-                                                  <option value="Porqueriza / Cochera">🐷 Porqueriza / Cochera</option>
-                                                  <option value="Galpón avícola / Gallinero">🐔 Galpón avícola / Gallinero</option>
-                                                  <option value="Secadero / Marquesina / Silo">🌾 Secadero / Marquesina / Silo</option>
-                                                  <option value="Trapiche panelero / Enramada">🍬 Trapiche panelero / Enramada</option>
-                                                  <option value="Tanque de reserva / Bocatoma / Acueducto">💧 Tanque de reserva / Bocatoma / Acueducto</option>
-                                                  <option value="Bodega de insumos / Herramientas">📦 Bodega de insumos / Herramientas</option>
-                                                  <option value="Cercas / Cerramientos perimetrales">🚧 Cercas / Cerramientos perimetrales</option>
-                                                  <option value="Otro">Otro (especificar en observaciones)</option>
-                                                </select>
+                                    {/* Otras instalaciones rurales adicionales que no sean las 5 principales */}
+                                    {infraestructurasRurales.filter(
+                                      (r) =>
+                                        ![
+                                          'casa',
+                                          'beneficiadero de café',
+                                          'casa de agregados',
+                                          'bodega de insumos',
+                                          'infraestructura pecuaria',
+                                        ].includes(r.tipo_infraestructura.toLowerCase())
+                                    ).length > 0 && (
+                                      <div className="space-y-2 pt-2 border-t border-emerald-200/70">
+                                        <span className="block text-[10px] font-bold text-emerald-900 uppercase">
+                                          Otras instalaciones rurales registradas:
+                                        </span>
+                                        {infraestructurasRurales.map((inf, idx) => {
+                                          if (
+                                            [
+                                              'casa',
+                                              'beneficiadero de café',
+                                              'casa de agregados',
+                                              'bodega de insumos',
+                                              'infraestructura pecuaria',
+                                            ].includes(inf.tipo_infraestructura.toLowerCase())
+                                          ) {
+                                            return null;
+                                          }
+                                          const estActual = inf.estado_dano === 'Parcial' ? 'Moderado' : inf.estado_dano;
+                                          return (
+                                            <div
+                                              key={`${inf.tipo_infraestructura}-${idx}`}
+                                              className="p-3 bg-white rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs"
+                                            >
+                                              <div className="font-bold text-slate-900 min-w-[160px]">
+                                                {inf.tipo_infraestructura}
                                               </div>
-
-                                              <div className="sm:col-span-3">
-                                                <label className="block text-[9px] font-bold text-slate-500 uppercase">Nivel de Daño</label>
-                                                <select
-                                                  value={inf.estado_dano}
-                                                  onChange={(e) => {
-                                                    const copy = [...infraestructurasRurales];
-                                                    copy[idx].estado_dano = e.target.value as any;
-                                                    setInfraestructurasRurales(copy);
-                                                  }}
-                                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-bold text-slate-800 focus:bg-white"
-                                                >
-                                                  <option value="Leve">⚪ Leve</option>
-                                                  <option value="Parcial">🟡 Parcial</option>
-                                                  <option value="Grave">🟠 Grave</option>
-                                                  <option value="Colapso Total">🔴 Colapso Total</option>
-                                                </select>
+                                              <div className="flex items-center gap-1 flex-wrap">
+                                                {(['Leve', 'Moderado', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                                  <button
+                                                    key={lvl}
+                                                    type="button"
+                                                    onClick={() => {
+                                                      const copy = [...infraestructurasRurales];
+                                                      copy[idx].estado_dano = lvl;
+                                                      setInfraestructurasRurales(copy);
+                                                    }}
+                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                                      estActual === lvl
+                                                        ? 'bg-emerald-600 text-white border-emerald-700'
+                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                                                    }`}
+                                                  >
+                                                    {lvl}
+                                                  </button>
+                                                ))}
                                               </div>
-
-                                              <div className="sm:col-span-3">
-                                                <label className="block text-[9px] font-bold text-slate-500 uppercase">Costo Estimado ($ COP)</label>
-                                                <input
-                                                  type="number"
-                                                  min="0"
-                                                  step="50000"
-                                                  placeholder="0"
-                                                  value={inf.costo_estimado_reparacion}
-                                                  onChange={(e) => {
-                                                    const copy = [...infraestructurasRurales];
-                                                    copy[idx].costo_estimado_reparacion = Number(e.target.value);
-                                                    setInfraestructurasRurales(copy);
-                                                  }}
-                                                  className="w-full px-2 py-1.5 bg-slate-50 border border-slate-200 rounded-lg text-xs font-mono font-bold text-emerald-800 focus:bg-white"
-                                                />
-                                              </div>
-
-                                              <div className="sm:col-span-1 flex justify-end">
-                                                <button
-                                                  type="button"
-                                                  onClick={() => {
-                                                    setInfraestructurasRurales(infraestructurasRurales.filter((_, i) => i !== idx));
-                                                  }}
-                                                  className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                                  title="Eliminar instalación"
-                                                >
-                                                  <Trash2 className="h-4 w-4" />
-                                                </button>
-                                              </div>
-                                            </div>
-
-                                            <div>
                                               <input
                                                 type="text"
-                                                placeholder="Detalle específico del daño (ej. tanques agrietados, rieles torcidos, cubierta desprendida)..."
+                                                placeholder="Observación..."
                                                 value={inf.observaciones || ''}
                                                 onChange={(e) => {
                                                   const copy = [...infraestructurasRurales];
                                                   copy[idx].observaciones = e.target.value;
                                                   setInfraestructurasRurales(copy);
                                                 }}
-                                                className="w-full px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs font-medium focus:bg-white focus:ring-1 focus:ring-emerald-500 outline-none"
+                                                className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
                                               />
+                                              <button
+                                                type="button"
+                                                onClick={() =>
+                                                  setInfraestructurasRurales(
+                                                    infraestructurasRurales.filter((_, i) => i !== idx)
+                                                  )
+                                                }
+                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                                                title="Eliminar"
+                                              >
+                                                <Trash2 className="h-4 w-4" />
+                                              </button>
                                             </div>
-                                          </div>
-                                        ))}
+                                          );
+                                        })}
+                                      </div>
+                                    )}
+
+                                    {/* Agregar otra instalación rural en línea */}
+                                    {!mostrarOtraInfraFinca ? (
+                                      <div className="pt-1">
+                                        <button
+                                          type="button"
+                                          onClick={() => setMostrarOtraInfraFinca(true)}
+                                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
+                                        >
+                                          <Plus className="h-3.5 w-3.5" />
+                                          <span>+ Agregar otra instalación de la finca (casilla de secado, trapiche, tanque...)</span>
+                                        </button>
+                                      </div>
+                                    ) : (
+                                      <div className="p-3 bg-white rounded-xl border border-emerald-300 space-y-2.5 animate-in fade-in duration-150">
+                                        <div className="flex items-center justify-between">
+                                          <span className="text-[11px] font-extrabold text-emerald-950">
+                                            Agregar otra instalación rural afectada
+                                          </span>
+                                          <button
+                                            type="button"
+                                            onClick={() => setMostrarOtraInfraFinca(false)}
+                                            className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
+                                          >
+                                            Cancelar
+                                          </button>
+                                        </div>
+                                        <div className="flex flex-wrap gap-1.5">
+                                          {[
+                                            'Casilla de secado / Elba / Pasera',
+                                            'Secadero / Marquesina / Silo',
+                                            'Trapiche panelero / Enramada',
+                                            'Tanque de reserva / Bocatoma / Acueducto',
+                                            'Cercas / Cerramientos perimetrales',
+                                          ].map((sug) => (
+                                            <button
+                                              key={sug}
+                                              type="button"
+                                              onClick={() => setOtraInfraFincaNombre(sug)}
+                                              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                                otraInfraFincaNombre === sug
+                                                  ? 'bg-emerald-600 text-white border-emerald-700'
+                                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50'
+                                              }`}
+                                            >
+                                              {sug}
+                                            </button>
+                                          ))}
+                                        </div>
+                                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
+                                          <input
+                                            type="text"
+                                            placeholder="Nombre de la instalación rural..."
+                                            value={otraInfraFincaNombre}
+                                            onChange={(e) => setOtraInfraFincaNombre(e.target.value)}
+                                            className="sm:col-span-6 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"
+                                          />
+                                          <select
+                                            value={otraInfraFincaDano}
+                                            onChange={(e) => setOtraInfraFincaDano(e.target.value as any)}
+                                            className="sm:col-span-3 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
+                                          >
+                                            <option value="Leve">Daño Leve</option>
+                                            <option value="Moderado">Daño Moderado</option>
+                                            <option value="Grave">Daño Grave</option>
+                                            <option value="Colapso Total">Pérdida Total</option>
+                                          </select>
+                                          <button
+                                            type="button"
+                                            onClick={() => {
+                                              if (!otraInfraFincaNombre.trim()) {
+                                                showToast('Ingresa o selecciona el nombre de la instalación.', 'warning');
+                                                return;
+                                              }
+                                              setInfraestructurasRurales([
+                                                ...infraestructurasRurales,
+                                                {
+                                                  tipo_infraestructura: otraInfraFincaNombre.trim(),
+                                                  estado_dano: otraInfraFincaDano,
+                                                  observaciones: '',
+                                                  costo_estimado_reparacion: 0,
+                                                },
+                                              ]);
+                                              setOtraInfraFincaNombre('');
+                                              setMostrarOtraInfraFinca(false);
+                                            }}
+                                            className="sm:col-span-3 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer"
+                                          >
+                                            Agregar
+                                          </button>
+                                        </div>
                                       </div>
                                     )}
                                   </div>
@@ -7563,119 +8309,58 @@ export const CatastrofesView: React.FC = () => {
                           </div>
 
                           {/* ==================== SECCIÓN FINAL EVALUACIÓN DEL INMUEBLE: BANCO DE MATERIALES GOBIERNO DE ANSERMA ==================== */}
-                          <div className="rounded-3xl border-2 border-slate-900 bg-white overflow-hidden shadow-sm">
-                            {/* Encabezado Oficial Formato Banco de Materiales */}
-                            <div className="bg-slate-900 text-white px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 border-b-2 border-slate-900">
+                          <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-2xs">
+                            {/* Encabezado alineado al sistema de diseño SAD */}
+                            <div className="bg-slate-50 px-4 sm:px-5 py-3.5 flex flex-wrap items-center justify-between gap-2 border-b border-slate-200">
                               <div className="flex items-center gap-2.5">
-                                <div className="p-2 rounded-xl bg-amber-400 text-slate-950 font-black">
+                                <div className="p-2 rounded-xl bg-blue-50 text-[#0071e3] border border-blue-100">
                                   <Hammer className="h-4 w-4" />
                                 </div>
                                 <div>
-                                  <h4 className="text-xs sm:text-sm font-black uppercase tracking-wider">
-                                    BANCO DE MATERIALES GOBIERNO DE ANSERMA
+                                  <h4 className="text-xs sm:text-sm font-extrabold text-slate-900">
+                                    Banco de Materiales — Gobierno de Anserma
                                   </h4>
-                                  <p className="text-[11px] text-slate-300">
-                                    Checklist y requerimiento técnico de materiales para recuperación de vivienda / infraestructura
+                                  <p className="text-[11px] text-slate-500">
+                                    Seleccione los materiales requeridos para el inmueble, indique cantidad, tipo y aprobación
                                   </p>
                                 </div>
                               </div>
                               <div className="flex items-center gap-2">
-                                <span className="px-2.5 py-1 rounded-full bg-amber-400/20 border border-amber-400/40 text-amber-300 text-[11px] font-extrabold">
-                                  {bancoMateriales.filter((m) => m.seleccionado || Number(m.cantidad) > 0).length} materiales solicitados
+                                <span className="px-2.5 py-1 rounded-full bg-blue-50 border border-blue-200 text-[#0071e3] text-[11px] font-bold">
+                                  {bancoMateriales.filter((m) => m.seleccionado || Number(m.cantidad) > 0).length} solicitados
                                 </span>
-                                <span className="px-2.5 py-1 rounded-full bg-emerald-400/20 border border-emerald-400/40 text-emerald-300 text-[11px] font-extrabold">
+                                <span className="px-2.5 py-1 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[11px] font-bold">
                                   {bancoMateriales.filter((m) => m.aprobado).length} aprobados
                                 </span>
                               </div>
                             </div>
 
-                            <div className="p-4 sm:p-5 space-y-5 bg-white">
-                              {/* Cabecera de Datos del Solicitante estilo Formato Oficial */}
-                              <div className="grid grid-cols-1 sm:grid-cols-12 gap-3 p-3.5 rounded-2xl bg-slate-50 border border-slate-200 text-xs">
-                                <div className="sm:col-span-4">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    NOMBRES
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {nombres || <span className="text-slate-400 font-normal">Se autocompleta de Datos del Evento</span>}
-                                  </div>
-                                </div>
-                                <div className="sm:col-span-5">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    APELLIDOS
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {apellidos || <span className="text-slate-400 font-normal">Se autocompleta de Datos del Evento</span>}
-                                  </div>
-                                </div>
-                                <div className="sm:col-span-3">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    RUD / RUFE
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-black text-blue-800 min-h-[34px] flex items-center">
-                                    {editingSolicitudCodigo || 'AUTOGENERADO'}
-                                  </div>
-                                </div>
-
-                                <div className="sm:col-span-5">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    CÉDULA
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {documento || <span className="text-slate-400 font-sans font-normal">Sin documento</span>}
-                                  </div>
-                                </div>
-                                <div className="sm:col-span-7">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    TELÉFONO
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-mono font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {telefono || <span className="text-slate-400 font-sans font-normal">Sin teléfono</span>}
-                                  </div>
-                                </div>
-
-                                <div className="sm:col-span-8">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    DIRECCIÓN
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {direccion || observacionSector || <span className="text-slate-400 font-normal">Sin dirección registrada</span>}
-                                  </div>
-                                </div>
-                                <div className="sm:col-span-4">
-                                  <span className="block text-[10px] font-black text-slate-700 uppercase tracking-wider mb-1">
-                                    BARRIO / VEREDA
-                                  </span>
-                                  <div className="px-3 py-2 bg-white border-2 border-slate-900 rounded-lg font-bold text-slate-900 min-h-[34px] flex items-center">
-                                    {sectores.find((s) => s.id_sector === sectorId)?.nombre_sector || 'Sin sector'}
-                                  </div>
-                                </div>
-                              </div>
-
-                              {/* Tabla Oficial de Materiales: TIPO DE MATERIAL | CANTIDAD | TIPO | APROBADO */}
+                            <div className="p-4 sm:p-5 space-y-4 bg-white">
+                              {/* Tabla de Materiales: TIPO DE MATERIAL | CANTIDAD | TIPO / ESPECIFICACIÓN | APROBADO */}
                               <div className="space-y-2">
-                                <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-2 py-1.5 text-[11px] font-black text-slate-900 uppercase tracking-wider border-b-2 border-slate-900">
-                                  <div className="sm:col-span-5">TIPO DE MATERIAL</div>
-                                  <div className="sm:col-span-2 text-center">CANTIDAD</div>
-                                  <div className="sm:col-span-3 text-center">TIPO / ESPECIFICACIÓN</div>
-                                  <div className="sm:col-span-2 text-center">APROBADO</div>
+                                <div className="hidden sm:grid sm:grid-cols-12 gap-3 px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-[11px] font-bold text-slate-600 uppercase tracking-wider">
+                                  <div className="sm:col-span-5">Tipo de Material</div>
+                                  <div className="sm:col-span-2 text-center">Cantidad</div>
+                                  <div className="sm:col-span-3">Tipo / Especificación</div>
+                                  <div className="sm:col-span-2 text-center">Aprobado</div>
                                 </div>
 
                                 <div className="space-y-2">
                                   {bancoMateriales.map((row, idx) => {
                                     const isActiveRow = row.seleccionado || Number(row.cantidad) > 0;
+                                    const isCustomRow = idx >= MATERIALES_BANCO_DEFAULT.length;
                                     return (
                                       <div
                                         key={`${row.material}-${idx}`}
                                         className={`grid grid-cols-1 sm:grid-cols-12 gap-2.5 items-center p-2.5 rounded-xl border transition-all ${
                                           isActiveRow
-                                            ? 'bg-amber-50/50 border-amber-400 shadow-2xs'
+                                            ? 'bg-blue-50/40 border-blue-300 shadow-2xs'
                                             : 'bg-white border-slate-200 hover:border-slate-300'
                                         }`}
                                       >
-                                        {/* Columna 1: TIPO DE MATERIAL (Con Checkbox estilo Checklist) */}
-                                        <div className="sm:col-span-5">
-                                          <label className="flex items-center gap-2.5 px-3 py-2 bg-white border-2 border-slate-900 rounded-lg cursor-pointer select-none">
+                                        {/* Columna 1: TIPO DE MATERIAL */}
+                                        <div className="sm:col-span-5 flex items-center gap-2">
+                                          <label className="flex-1 flex items-center gap-2.5 px-3 py-2 bg-slate-50/80 hover:bg-slate-100/80 border border-slate-200 rounded-xl cursor-pointer select-none transition">
                                             <input
                                               type="checkbox"
                                               checked={isActiveRow}
@@ -7685,22 +8370,39 @@ export const CatastrofesView: React.FC = () => {
                                                 next[idx] = {
                                                   ...next[idx],
                                                   seleccionado: checked,
-                                                  cantidad: checked && (!next[idx].cantidad || Number(next[idx].cantidad) === 0) ? 1 : checked ? next[idx].cantidad : '',
+                                                  cantidad:
+                                                    checked && (!next[idx].cantidad || Number(next[idx].cantidad) === 0)
+                                                      ? 1
+                                                      : checked
+                                                        ? next[idx].cantidad
+                                                        : '',
                                                   aprobado: checked ? next[idx].aprobado : false,
                                                 };
                                                 setBancoMateriales(next);
                                               }}
-                                              className="h-4 w-4 rounded border-slate-400 text-[#0071e3] focus:ring-[#0071e3] shrink-0"
+                                              className="h-4 w-4 rounded border-slate-300 text-[#0071e3] focus:ring-[#0071e3] shrink-0"
                                             />
-                                            <span className="text-xs font-extrabold text-slate-900 leading-tight">
+                                            <span className="text-xs font-bold text-slate-900 leading-tight">
                                               {row.material}
                                             </span>
                                           </label>
+                                          {isCustomRow && (
+                                            <button
+                                              type="button"
+                                              onClick={() =>
+                                                setBancoMateriales(bancoMateriales.filter((_, i) => i !== idx))
+                                              }
+                                              className="p-2 rounded-xl text-rose-500 hover:bg-rose-50 border border-transparent hover:border-rose-200 transition cursor-pointer shrink-0"
+                                              title="Quitar material adicional"
+                                            >
+                                              <Trash2 className="h-3.5 w-3.5" />
+                                            </button>
+                                          )}
                                         </div>
 
                                         {/* Columna 2: CANTIDAD */}
                                         <div className="sm:col-span-2">
-                                          <label className="block sm:hidden text-[10px] font-black text-slate-600 uppercase mb-0.5">
+                                          <label className="block sm:hidden text-[10px] font-bold text-slate-500 uppercase mb-0.5">
                                             Cantidad:
                                           </label>
                                           <input
@@ -7718,14 +8420,14 @@ export const CatastrofesView: React.FC = () => {
                                               };
                                               setBancoMateriales(next);
                                             }}
-                                            className="w-full px-3 py-2 bg-white border-2 border-slate-900 rounded-lg text-xs font-mono font-black text-center text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-mono font-bold text-center text-slate-900 focus:bg-white focus:border-[#0071e3] focus:ring-2 focus:ring-blue-500/15 outline-none"
                                           />
                                         </div>
 
                                         {/* Columna 3: TIPO / ESPECIFICACIÓN */}
                                         <div className="sm:col-span-3">
-                                          <label className="block sm:hidden text-[10px] font-black text-slate-600 uppercase mb-0.5">
-                                            Tipo / Referencia:
+                                          <label className="block sm:hidden text-[10px] font-bold text-slate-500 uppercase mb-0.5">
+                                            Tipo / Especificación:
                                           </label>
                                           <input
                                             type="text"
@@ -7736,15 +8438,16 @@ export const CatastrofesView: React.FC = () => {
                                               next[idx] = {
                                                 ...next[idx],
                                                 tipo: e.target.value,
-                                                seleccionado: e.target.value.trim() !== '' ? true : next[idx].seleccionado,
+                                                seleccionado:
+                                                  e.target.value.trim() !== '' ? true : next[idx].seleccionado,
                                               };
                                               setBancoMateriales(next);
                                             }}
-                                            className="w-full px-3 py-2 bg-white border-2 border-slate-900 rounded-lg text-xs font-semibold text-slate-900 focus:ring-2 focus:ring-amber-500 outline-none"
+                                            className="w-full px-3 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:bg-white focus:border-[#0071e3] focus:ring-2 focus:ring-blue-500/15 outline-none"
                                           />
                                         </div>
 
-                                        {/* Columna 4: APROBADO (Recuadro punteado como en el formato físico) */}
+                                        {/* Columna 4: APROBADO */}
                                         <div className="sm:col-span-2 flex items-center justify-center">
                                           <button
                                             type="button"
@@ -7755,20 +8458,24 @@ export const CatastrofesView: React.FC = () => {
                                                 ...next[idx],
                                                 aprobado: nextAprob,
                                                 seleccionado: nextAprob ? true : next[idx].seleccionado,
-                                                cantidad: nextAprob && (!next[idx].cantidad || Number(next[idx].cantidad) === 0) ? 1 : next[idx].cantidad,
+                                                cantidad:
+                                                  nextAprob &&
+                                                  (!next[idx].cantidad || Number(next[idx].cantidad) === 0)
+                                                    ? 1
+                                                    : next[idx].cantidad,
                                               };
                                               setBancoMateriales(next);
                                             }}
-                                            className={`w-full py-2 px-2.5 rounded-lg border-2 border-dashed text-xs font-black flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                                            className={`w-full py-2 px-2.5 rounded-xl border text-xs font-bold flex items-center justify-center gap-1.5 transition cursor-pointer ${
                                               row.aprobado
-                                                ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
-                                                : 'border-slate-500 bg-white text-slate-500 hover:bg-slate-50'
+                                                ? 'border-emerald-300 bg-emerald-50 text-emerald-800 shadow-2xs'
+                                                : 'border-slate-200 bg-slate-50 text-slate-500 hover:bg-slate-100'
                                             }`}
                                           >
                                             {row.aprobado ? (
                                               <>
                                                 <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
-                                                <span>APROBADO</span>
+                                                <span>Aprobado</span>
                                               </>
                                             ) : (
                                               <span>Pendiente</span>
@@ -7781,11 +8488,131 @@ export const CatastrofesView: React.FC = () => {
                                 </div>
                               </div>
 
-                              {/* Pie del formato: SOLICITADO POR */}
-                              <div className="pt-3 border-t-2 border-slate-900 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                              {/* Panel Integrado en Frontend para Agregar Material Adicional (Sin window.prompt) */}
+                              {mostrarAgregarMaterialInline && (
+                                <div className="p-3.5 rounded-2xl bg-blue-50/50 border border-blue-200 space-y-3 animate-in fade-in duration-150">
+                                  <div className="flex items-center justify-between">
+                                    <span className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
+                                      <Plus className="h-3.5 w-3.5 text-[#0071e3]" />
+                                      <span>Agregar material adicional al listado</span>
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setMostrarAgregarMaterialInline(false);
+                                        setNuevoMaterialNombre('');
+                                        setNuevoMaterialCantidad('1');
+                                        setNuevoMaterialTipo('');
+                                      }}
+                                      className="text-xs font-semibold text-slate-500 hover:text-slate-800 cursor-pointer"
+                                    >
+                                      Cerrar
+                                    </button>
+                                  </div>
+
+                                  {/* Sugerencias rápidas con 1 clic */}
+                                  <div className="flex flex-wrap items-center gap-1.5">
+                                    <span className="text-[10px] font-bold text-slate-500 uppercase mr-1">
+                                      Sugerencias rápidas:
+                                    </span>
+                                    {[
+                                      'Teja de Barro / Caballete',
+                                      'Tubería y Accesorios PVC',
+                                      'Puntillas y Alambre de Amarre',
+                                      'Tanque Plástico de Reserva',
+                                      'Puerta / Ventana Metálica',
+                                      'Pintura / Impermeabilizante',
+                                    ].map((sugMat) => (
+                                      <button
+                                        key={sugMat}
+                                        type="button"
+                                        onClick={() => setNuevoMaterialNombre(sugMat)}
+                                        className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
+                                          nuevoMaterialNombre === sugMat
+                                            ? 'bg-[#0071e3] text-white border-[#0071e3]'
+                                            : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300 hover:bg-blue-50'
+                                        }`}
+                                      >
+                                        + {sugMat}
+                                      </button>
+                                    ))}
+                                  </div>
+
+                                  <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-end">
+                                    <div className="sm:col-span-5">
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Nombre del Material *
+                                      </label>
+                                      <input
+                                        type="text"
+                                        placeholder="Ej. Tubería PVC 4 pulgadas, Alambre..."
+                                        value={nuevoMaterialNombre}
+                                        onChange={(e) => setNuevoMaterialNombre(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:border-[#0071e3] outline-none"
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Cantidad
+                                      </label>
+                                      <input
+                                        type="number"
+                                        min="1"
+                                        value={nuevoMaterialCantidad}
+                                        onChange={(e) => setNuevoMaterialCantidad(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-mono font-bold text-center text-slate-900 focus:border-[#0071e3] outline-none"
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-3">
+                                      <label className="block text-[10px] font-bold text-slate-600 uppercase mb-1">
+                                        Tipo / Referencia
+                                      </label>
+                                      <input
+                                        type="text"
+                                        placeholder="Opcional (ej. Calibre, medida...)"
+                                        value={nuevoMaterialTipo}
+                                        onChange={(e) => setNuevoMaterialTipo(e.target.value)}
+                                        className="w-full px-3 py-2 bg-white border border-slate-300 rounded-xl text-xs font-medium text-slate-900 focus:border-[#0071e3] outline-none"
+                                      />
+                                    </div>
+                                    <div className="sm:col-span-2">
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          if (!nuevoMaterialNombre.trim()) {
+                                            showToast('Escribe o selecciona el nombre del material adicional.', 'warning');
+                                            return;
+                                          }
+                                          setBancoMateriales([
+                                            ...bancoMateriales,
+                                            {
+                                              material: nuevoMaterialNombre.trim(),
+                                              seleccionado: true,
+                                              cantidad: Math.max(1, Number(nuevoMaterialCantidad) || 1),
+                                              tipo: nuevoMaterialTipo.trim(),
+                                              aprobado: false,
+                                            },
+                                          ]);
+                                          setNuevoMaterialNombre('');
+                                          setNuevoMaterialCantidad('1');
+                                          setNuevoMaterialTipo('');
+                                          setMostrarAgregarMaterialInline(false);
+                                          showToast('Material adicional agregado al listado.', 'success');
+                                        }}
+                                        className="w-full py-2 px-3 bg-[#0071e3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs"
+                                      >
+                                        Agregar
+                                      </button>
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+
+                              {/* Pie del formato: SOLICITADO POR + Botón Agregar otro material */}
+                              <div className="pt-3 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                                 <div className="flex-1 flex flex-col sm:flex-row sm:items-center gap-2.5">
-                                  <label className="text-xs font-black text-slate-950 uppercase tracking-wider shrink-0">
-                                    SOLICITADO POR:
+                                  <label className="text-xs font-extrabold text-slate-700 uppercase tracking-wide shrink-0">
+                                    Solicitado por:
                                   </label>
                                   <input
                                     type="text"
@@ -7798,31 +8625,19 @@ export const CatastrofesView: React.FC = () => {
                                     }
                                     value={solicitadoPorMateriales}
                                     onChange={(e) => setSolicitadoPorMateriales(e.target.value)}
-                                    className="flex-1 px-3.5 py-2 bg-slate-50 border-b-2 border-slate-900 text-xs font-bold text-slate-900 focus:bg-white outline-none"
+                                    className="flex-1 px-3.5 py-2 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold text-slate-900 focus:bg-white focus:border-[#0071e3] outline-none"
                                   />
                                 </div>
-                                <button
-                                  type="button"
-                                  onClick={() => {
-                                    const nombreCustom = window.prompt('Ingrese el nombre del material adicional a agregar al listado:');
-                                    if (nombreCustom && nombreCustom.trim()) {
-                                      setBancoMateriales([
-                                        ...bancoMateriales,
-                                        {
-                                          material: nombreCustom.trim(),
-                                          seleccionado: true,
-                                          cantidad: 1,
-                                          tipo: '',
-                                          aprobado: false,
-                                        },
-                                      ]);
-                                    }
-                                  }}
-                                  className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-300 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
-                                >
-                                  <Plus className="h-3.5 w-3.5" />
-                                  <span>+ Agregar otro material</span>
-                                </button>
+                                {!mostrarAgregarMaterialInline && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setMostrarAgregarMaterialInline(true)}
+                                    className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 border border-slate-200 text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shrink-0"
+                                  >
+                                    <Plus className="h-3.5 w-3.5 text-[#0071e3]" />
+                                    <span>+ Agregar otro material</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
@@ -7838,13 +8653,6 @@ export const CatastrofesView: React.FC = () => {
                             ← Volver (RUFE)
                           </button>
                           <div className="flex items-center gap-2 flex-wrap">
-                            <button
-                              type="button"
-                              onClick={handleGuardarBorrador}
-                              className="px-4 py-2.5 bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 rounded-xl text-xs font-semibold transition cursor-pointer"
-                            >
-                              Guardar borrador
-                            </button>
                             {HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ? (
                               <button
                                 type="button"
@@ -7859,9 +8667,11 @@ export const CatastrofesView: React.FC = () => {
                                 type="submit"
                                 disabled={submitting}
                                 className={`px-7 py-2.5 text-white rounded-xl text-xs font-black shadow-sm transition flex items-center gap-2 cursor-pointer disabled:opacity-50 ${
-                                  editingSolicitudId
-                                    ? 'bg-amber-600 hover:bg-amber-700'
-                                    : 'bg-[#0071e3] hover:bg-[#0077ED]'
+                                  registroModo === 'VISITA_TECNICA'
+                                    ? 'bg-indigo-600 hover:bg-indigo-700'
+                                    : editingSolicitudId
+                                      ? 'bg-amber-600 hover:bg-amber-700'
+                                      : 'bg-[#0071e3] hover:bg-[#0077ED]'
                                 }`}
                               >
                                 {submitting ? (
@@ -7870,9 +8680,11 @@ export const CatastrofesView: React.FC = () => {
                                   <CheckCircle className="h-4 w-4" />
                                 )}
                                 <span>
-                                  {editingSolicitudId
-                                    ? `Guardar Cambios (${editingSolicitudCodigo || `SOL-${editingSolicitudId}`})`
-                                    : 'Registrar Solicitud y Evaluación'}
+                                  {registroModo === 'VISITA_TECNICA'
+                                    ? `Guardar Visita Técnica #${(reporteInicialSnapshot?.total_visitas_previas || 0) + 1} y Actualizar Evaluación`
+                                    : editingSolicitudId
+                                      ? `Guardar Cambios (${editingSolicitudCodigo || `SOL-${editingSolicitudId}`})`
+                                      : 'Registrar Solicitud y Evaluación'}
                                 </span>
                               </button>
                             )}
@@ -8646,12 +9458,12 @@ export const CatastrofesView: React.FC = () => {
 
                               <button
                                 type="button"
-                                onClick={() => setVisitaModalSolicitud(sol)}
+                                onClick={() => handleIniciarVisitaTecnica(sol)}
                                 className="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] py-1.5 px-2 rounded-xl shadow-xs transition flex items-center justify-center gap-1 cursor-pointer"
-                                title="Registrar una o múltiples visitas técnicas a este inmueble"
+                                title="Realizar visita técnica y re-evaluar la vivienda"
                               >
                                 <ClipboardCheck className="h-3.5 w-3.5" />
-                                <span>+ Visita ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                                <span>Visita Técnica ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
                               </button>
 
                               {!isCensoOnlyUser && (
@@ -9249,11 +10061,11 @@ export const CatastrofesView: React.FC = () => {
 
                                       <button
                                         type="button"
-                                        onClick={() => setVisitaModalSolicitud(sol)}
+                                        onClick={() => handleIniciarVisitaTecnica(sol)}
                                         className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-extrabold text-[11px] py-1.5 px-3 rounded-xl shadow-xs transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
                                       >
                                         <ClipboardCheck className="h-3.5 w-3.5" />
-                                        <span>+ Realizar Visita Técnica ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                                        <span>Visita Técnica — Re-evaluar ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
                                       </button>
 
                                       <button
@@ -9495,72 +10307,74 @@ export const CatastrofesView: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[#F5F5F7]">
-                      {solicitudesFiltradasDashboard.map((sol) => (
-                        <tr key={sol.id_solicitud} className="hover:bg-[#F5F5F7]/70 transition">
-                          <td className="py-3.5 px-4 font-mono font-bold text-[#007AFF]">
-                            {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <div className="font-bold text-[#1D1D1F]">{sol.nombre_completo}</div>
-                            <div className="text-[11px] text-[#6E6E73] font-mono">CC: {sol.documento}</div>
-                          </td>
-                          <td className="py-3.5 px-4 text-[#6E6E73]">
-                            <div className="font-semibold text-[#1D1D1F]">{sol.nombre_sector}</div>
-                            <div className="text-[11px] text-[#6E6E73] truncate max-w-[180px]">{sol.direccion_afectacion || 'Zona verificada'}</div>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${sol.afectacion_nivel === 'Colapso Total'
-                                ? 'bg-[#FF3B30]/12 text-[#FF3B30]'
-                                : sol.afectacion_nivel === 'Grave'
-                                  ? 'bg-[#FF9500]/15 text-[#FF9500]'
-                                  : sol.afectacion_nivel === 'Leve'
-                                    ? 'bg-[#FFCC00]/20 text-[#997A00]'
-                                    : 'bg-[#F5F5F7] text-[#6E6E73]'
-                                }`}
-                            >
-                              {sol.afectacion_nivel || 'Ninguno'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-[11px] text-[#6E6E73]">
-                            Techo: <strong>{sol.techo_damage_level || 'S/D'}</strong> • Est: <strong>{sol.estructura_damage_level || 'S/D'}</strong>
-                          </td>
-                          <td className="py-3.5 px-4">
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${sol.estado_atencion === 'ATENDIDO'
-                                ? 'bg-[#34C759]/12 text-[#34C759]'
-                                : 'bg-[#007AFF]/10 text-[#007AFF]'
-                                }`}
-                            >
-                              {sol.estado_atencion === 'ATENDIDO' ? 'Evaluada y Atendida' : 'En evaluación'}
-                            </span>
-                          </td>
-                          <td className="py-3.5 px-4 text-right">
-                            <div className="inline-flex items-center gap-1.5 justify-end">
-                              <button
-                                type="button"
-                                onClick={() => setVisitaModalSolicitud(sol)}
-                                className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
-                                title="Registrar nueva visita técnica"
+                      {solicitudesFiltradasDashboard
+                        .slice((evalCurrentPage - 1) * 12, evalCurrentPage * 12)
+                        .map((sol) => (
+                          <tr key={sol.id_solicitud} className="hover:bg-[#F5F5F7]/70 transition">
+                            <td className="py-3.5 px-4 font-mono font-bold text-[#007AFF]">
+                              {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <div className="font-bold text-[#1D1D1F]">{sol.nombre_completo}</div>
+                              <div className="text-[11px] text-[#6E6E73] font-mono">CC: {sol.documento}</div>
+                            </td>
+                            <td className="py-3.5 px-4 text-[#6E6E73]">
+                              <div className="font-semibold text-[#1D1D1F]">{sol.nombre_sector}</div>
+                              <div className="text-[11px] text-[#6E6E73] truncate max-w-[180px]">{sol.direccion_afectacion || 'Zona verificada'}</div>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${sol.afectacion_nivel === 'Colapso Total'
+                                  ? 'bg-[#FF3B30]/12 text-[#FF3B30]'
+                                  : sol.afectacion_nivel === 'Grave'
+                                    ? 'bg-[#FF9500]/15 text-[#FF9500]'
+                                    : sol.afectacion_nivel === 'Leve'
+                                      ? 'bg-[#FFCC00]/20 text-[#997A00]'
+                                      : 'bg-[#F5F5F7] text-[#6E6E73]'
+                                  }`}
                               >
-                                <ClipboardCheck className="h-3.5 w-3.5" />
-                                <span>+ Visita ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
-                              </button>
-                              <button
-                                type="button"
-                                onClick={async () => {
-                                  await handleEditarSolicitud(sol.id_solicitud);
-                                  setFormStepTab(4);
-                                }}
-                                className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0062CC] text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                {sol.afectacion_nivel || 'Ninguno'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-[11px] text-[#6E6E73]">
+                              Techo: <strong>{sol.techo_damage_level || 'S/D'}</strong> • Est: <strong>{sol.estructura_damage_level || 'S/D'}</strong>
+                            </td>
+                            <td className="py-3.5 px-4">
+                              <span
+                                className={`px-2.5 py-0.5 rounded-full text-[11px] font-bold ${sol.estado_atencion === 'ATENDIDO'
+                                  ? 'bg-[#34C759]/12 text-[#34C759]'
+                                  : 'bg-[#007AFF]/10 text-[#007AFF]'
+                                  }`}
                               >
-                                <ListCheck className="h-3.5 w-3.5" />
-                                <span>Evaluar Daños</span>
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
-                      ))}
+                                {sol.estado_atencion === 'ATENDIDO' ? 'Evaluada y Atendida' : 'En evaluación'}
+                              </span>
+                            </td>
+                            <td className="py-3.5 px-4 text-right">
+                              <div className="inline-flex items-center gap-1.5 justify-end">
+                                <button
+                                  type="button"
+                                  onClick={() => handleIniciarVisitaTecnica(sol)}
+                                  className="px-2.5 py-1.5 bg-indigo-600 hover:bg-indigo-700 text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                  title="Realizar visita técnica y re-evaluar la vivienda"
+                                >
+                                  <ClipboardCheck className="h-3.5 w-3.5" />
+                                  <span>Visita Técnica ({sol.total_visitas ?? (sol.visita ? 1 : 0)})</span>
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={async () => {
+                                    await handleEditarSolicitud(sol.id_solicitud, 'SOLICITUD_SOLO');
+                                    setFormStepTab(4);
+                                  }}
+                                  className="px-3 py-1.5 bg-[#007AFF] hover:bg-[#0062CC] text-white rounded-[10px] text-xs font-semibold transition cursor-pointer inline-flex items-center gap-1"
+                                >
+                                  <ListCheck className="h-3.5 w-3.5" />
+                                  <span>Evaluar Daños</span>
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        ))}
                       {solicitudesFiltradasDashboard.length === 0 && (
                         <tr>
                           <td colSpan={7} className="py-8 text-center text-[#6E6E73]">
@@ -9571,6 +10385,45 @@ export const CatastrofesView: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+
+                {/* Paginación de Evaluaciones */}
+                {solicitudesFiltradasDashboard.length > 12 && (
+                  <div className="px-4 py-3 border-t border-[#E5E5EA] bg-[#F5F5F7]/60 flex items-center justify-between text-xs">
+                    <span className="text-[#6E6E73] font-medium">
+                      Mostrando{' '}
+                      <strong className="text-[#1D1D1F]">
+                        {(evalCurrentPage - 1) * 12 + 1}–
+                        {Math.min(evalCurrentPage * 12, solicitudesFiltradasDashboard.length)}
+                      </strong>{' '}
+                      de <strong className="text-[#1D1D1F]">{solicitudesFiltradasDashboard.length}</strong> evaluaciones
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        disabled={evalCurrentPage <= 1}
+                        onClick={() => setEvalCurrentPage((p) => Math.max(1, p - 1))}
+                        className="px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] font-semibold text-[#1D1D1F] disabled:opacity-40 cursor-pointer"
+                      >
+                        ‹ Anterior
+                      </button>
+                      <span className="px-2.5 py-1 font-bold text-[#007AFF]">
+                        Pág. {evalCurrentPage} / {Math.max(1, Math.ceil(solicitudesFiltradasDashboard.length / 12))}
+                      </span>
+                      <button
+                        type="button"
+                        disabled={evalCurrentPage >= Math.ceil(solicitudesFiltradasDashboard.length / 12)}
+                        onClick={() =>
+                          setEvalCurrentPage((p) =>
+                            Math.min(Math.ceil(solicitudesFiltradasDashboard.length / 12), p + 1)
+                          )
+                        }
+                        className="px-3 py-1.5 rounded-lg border border-[#D2D2D7] bg-white hover:bg-[#F5F5F7] font-semibold text-[#1D1D1F] disabled:opacity-40 cursor-pointer"
+                      >
+                        Siguiente ›
+                      </button>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
           )}
