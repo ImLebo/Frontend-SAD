@@ -20,10 +20,12 @@ import {
   Globe2,
   HeartHandshake,
   Home,
+  Info,
   Layers,
   Leaf,
   List,
   ListCheck,
+  ClipboardList,
   Loader2,
   LocateFixed,
   MapPin,
@@ -218,8 +220,15 @@ export const CatastrofesView: React.FC = () => {
     }
   }, [isCensoOnlyUser, isEntregaOnlyUser]);
 
-  // Disaster solicitudes (Pending and Completed)
+  // Disaster solicitudes (Pending and Completed) & Entregas
   const [todasSolicitudes, setTodasSolicitudes] = useState<any[]>([]);
+  const [todasEntregas, setTodasEntregas] = useState<any[]>([]);
+  const [listarVistaModo, setListarVistaModo] = useState<'solicitudes' | 'entregas'>('solicitudes');
+  const [historialVistaModo, setHistorialVistaModo] = useState<'entregas' | 'solicitudes' | 'sesion'>('entregas');
+  const [historialSearchQuery, setHistorialSearchQuery] = useState('');
+  const deferredHistorialSearch = useDeferredValue(historialSearchQuery);
+  const [historialSectorFiltro, setHistorialSectorFiltro] = useState<number | 'ALL'>('ALL');
+  const [historialCurrentPage, setHistorialCurrentPage] = useState<number>(1);
   const [selectedRequest, setSelectedRequest] = useState<any | null>(null);
   const [isRequestPickerOpen, setIsRequestPickerOpen] = useState(false);
 
@@ -244,16 +253,32 @@ export const CatastrofesView: React.FC = () => {
   const [mostrarResultadosBusqueda, setMostrarResultadosBusqueda] = useState(false);
   const [editandoNucleoInline, setEditandoNucleoInline] = useState(false);
 
+  const encontrarSolicitudExistenteNucleo = (docsNucleo: string[], idNucleo?: number | null) => {
+    const cleanDocs = docsNucleo.map((d) => String(d || '').trim()).filter(Boolean);
+    return todasSolicitudes.find((s: any) => {
+      if (editingSolicitudId && Number(s.id_solicitud) === Number(editingSolicitudId)) return false;
+      if (selectedEventoId && s.id_evento && Number(s.id_evento) !== Number(selectedEventoId)) return false;
+      if (idNucleo && s.id_nucleo && Number(s.id_nucleo) === Number(idNucleo)) return true;
+      const docTit = String(s.documento || '').trim();
+      if (docTit && cleanDocs.includes(docTit)) return true;
+      const docsSol: string[] = Array.isArray(s.documentos_nucleo)
+        ? s.documentos_nucleo.map((x: any) => String(x || '').trim())
+        : [];
+      return cleanDocs.some((d) => docsSol.includes(d));
+    });
+  };
+
   const cargarDatosDesdeNucleo = (nf: any, personaRef?: any) => {
     setIdNucleoVinculado(nf.id_nucleo);
     setNombreNucleoVinculado(nf.nombre_nucleo || nf.codigo_nucleo || `Núcleo #${nf.id_nucleo}`);
     if (nf.id_sector) setSectorId(Number(nf.id_sector));
     if (nf.direccion) setDireccion(nf.direccion);
     const todosMiembros = Array.isArray(nf.miembros) ? nf.miembros : [];
-    const titular =
-      personaRef ||
+    const cabezaHogar =
       todosMiembros.find((m: any) => m.estado_miembro === 'ACTIVO' && m.es_cabeza_hogar) ||
+      personaRef ||
       todosMiembros.find((m: any) => m.estado_miembro === 'ACTIVO');
+    const titular = cabezaHogar || personaRef;
     if (titular) {
       if (titular.documento) setDocumento(titular.documento);
       if (titular.nombres) setNombres(titular.nombres);
@@ -277,6 +302,21 @@ export const CatastrofesView: React.FC = () => {
         telefono: m.telefono || '',
       })),
     );
+    setHayAcompanantes(acomp.length > 0);
+    setNumAcompanantes(Math.max(1, acomp.length));
+
+    // Verificar si algún miembro del núcleo ya tiene solicitud en este evento
+    const docsDelNucleo = [
+      titular?.documento,
+      ...todosMiembros.map((m: any) => m.documento),
+    ].filter(Boolean);
+    const solExistente = encontrarSolicitudExistenteNucleo(docsDelNucleo, nf.id_nucleo);
+    if (solExistente && !editingSolicitudId && (registroModo === 'SOLICITUD_SOLO' || registroModo === 'ENTREGA_DIRECTA')) {
+      showToast(
+        `⚠️ Este núcleo familiar ya tiene registrada la solicitud ${solExistente.codigo_solicitud || `SOL-${solExistente.id_solicitud}`} a nombre de ${solExistente.nombre_completo}. Solo se permite una solicitud por núcleo familiar.`,
+        'warning'
+      );
+    }
   };
 
   const handleBuscarPorNombreOCedula = async (termino?: string) => {
@@ -620,10 +660,14 @@ export const CatastrofesView: React.FC = () => {
   const fetchSolicitudes = async (evId?: number) => {
     const targetEv = evId || selectedEventoId;
     try {
-      const res = await sacService.getTodasSolicitudes('all', targetEv);
-      setTodasSolicitudes(res);
+      const [resSol, resEnt] = await Promise.all([
+        sacService.getTodasSolicitudes('all', targetEv),
+        sacService.getTodasEntregas(targetEv).catch(() => []),
+      ]);
+      setTodasSolicitudes(resSol);
+      setTodasEntregas(Array.isArray(resEnt) ? resEnt : []);
     } catch (e) {
-      console.error('Error al cargar solicitudes', e);
+      console.error('Error al cargar solicitudes y entregas', e);
     }
   };
 
@@ -660,25 +704,106 @@ export const CatastrofesView: React.FC = () => {
       const doc = String(s.documento || '').toLowerCase();
       const nom = `${s.nombres || ''} ${s.apellidos || ''} ${s.nombre_completo || ''}`.toLowerCase();
       const cod = String(s.codigo_solicitud || `SOL-${s.id_solicitud}`).toLowerCase();
+      const codsEnt = String(s.codigos_entregas || '').toLowerCase();
       const sec = String(s.nombre_sector || '').toLowerCase();
       const dir = String(s.direccion_afectacion || s.direccion || '').toLowerCase();
       const tel = String(s.telefono || '').toLowerCase();
-      return doc.includes(q) || nom.includes(q) || cod.includes(q) || sec.includes(q) || dir.includes(q) || tel.includes(q);
+      const docsNuc = Array.isArray(s.documentos_nucleo) ? s.documentos_nucleo.join(' ').toLowerCase() : '';
+      const nomsNuc = Array.isArray(s.nombres_nucleo) ? s.nombres_nucleo.join(' ').toLowerCase() : '';
+      return (
+        doc.includes(q) ||
+        nom.includes(q) ||
+        cod.includes(q) ||
+        codsEnt.includes(q) ||
+        sec.includes(q) ||
+        dir.includes(q) ||
+        tel.includes(q) ||
+        docsNuc.includes(q) ||
+        nomsNuc.includes(q)
+      );
     });
   }, [todasSolicitudes, deferredListarSearch, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro]);
 
+  const filteredListarEntregas = useMemo(() => {
+    const q = deferredListarSearch.toLowerCase().trim();
+    return todasEntregas.filter((ent: any) => {
+      if (listarEventoFiltro !== 'ALL' && ent.id_evento && ent.id_evento !== listarEventoFiltro) {
+        return false;
+      }
+      if (listarSectorFiltro !== 'ALL' && Number(ent.id_sector) !== Number(listarSectorFiltro)) {
+        return false;
+      }
+      if (!q) return true;
+      const codEnt = String(ent.codigo_entrega || `ENT-${ent.id_entrega}`).toLowerCase();
+      const codSol = String(ent.codigo_solicitud || `SOL-${ent.id_solicitud}`).toLowerCase();
+      const docTit = String(ent.documento || '').toLowerCase();
+      const nomTit = String(ent.nombre_completo || '').toLowerCase();
+      const docRec = String(ent.documento_receptor || '').toLowerCase();
+      const nomRec = String(ent.nombre_receptor || '').toLowerCase();
+      const items = String(ent.items_resumen || '').toLowerCase();
+      const sec = String(ent.nombre_sector || '').toLowerCase();
+      const don = String(ent.nombre_entidad_donante || '').toLowerCase();
+      return (
+        codEnt.includes(q) ||
+        codSol.includes(q) ||
+        docTit.includes(q) ||
+        nomTit.includes(q) ||
+        docRec.includes(q) ||
+        nomRec.includes(q) ||
+        items.includes(q) ||
+        sec.includes(q) ||
+        don.includes(q)
+      );
+    });
+  }, [todasEntregas, deferredListarSearch, listarEventoFiltro, listarSectorFiltro]);
+
+  const filteredHistorialEntregas = useMemo(() => {
+    const q = deferredHistorialSearch.toLowerCase().trim();
+    return todasEntregas.filter((ent: any) => {
+      if (selectedEventoId && ent.id_evento && ent.id_evento !== selectedEventoId) return false;
+      if (historialSectorFiltro !== 'ALL' && Number(ent.id_sector) !== Number(historialSectorFiltro)) return false;
+      if (!q) return true;
+      const codEnt = String(ent.codigo_entrega || `ENT-${ent.id_entrega}`).toLowerCase();
+      const codSol = String(ent.codigo_solicitud || `SOL-${ent.id_solicitud}`).toLowerCase();
+      const docTit = String(ent.documento || '').toLowerCase();
+      const nomTit = String(ent.nombre_completo || '').toLowerCase();
+      const docRec = String(ent.documento_receptor || '').toLowerCase();
+      const nomRec = String(ent.nombre_receptor || '').toLowerCase();
+      const items = String(ent.items_resumen || '').toLowerCase();
+      const sec = String(ent.nombre_sector || '').toLowerCase();
+      const don = String(ent.nombre_entidad_donante || '').toLowerCase();
+      return (
+        codEnt.includes(q) ||
+        codSol.includes(q) ||
+        docTit.includes(q) ||
+        nomTit.includes(q) ||
+        docRec.includes(q) ||
+        nomRec.includes(q) ||
+        items.includes(q) ||
+        sec.includes(q) ||
+        don.includes(q)
+      );
+    });
+  }, [todasEntregas, deferredHistorialSearch, selectedEventoId, historialSectorFiltro]);
+
   useEffect(() => {
     setListarCurrentPage(1);
-  }, [deferredListarSearch, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro, listarPageSize]);
+  }, [deferredListarSearch, listarEventoFiltro, listarEstadoFiltro, listarSectorFiltro, listarNivelDanoFiltro, listarPageSize, listarVistaModo]);
 
   const totalListarPages = useMemo(() => {
-    return Math.max(1, Math.ceil(filteredListarSolicitudes.length / listarPageSize));
-  }, [filteredListarSolicitudes.length, listarPageSize]);
+    const count = listarVistaModo === 'entregas' ? filteredListarEntregas.length : filteredListarSolicitudes.length;
+    return Math.max(1, Math.ceil(count / listarPageSize));
+  }, [filteredListarSolicitudes.length, filteredListarEntregas.length, listarPageSize, listarVistaModo]);
 
   const paginatedListarSolicitudes = useMemo(() => {
     const start = (listarCurrentPage - 1) * listarPageSize;
     return filteredListarSolicitudes.slice(start, start + listarPageSize);
   }, [filteredListarSolicitudes, listarCurrentPage, listarPageSize]);
+
+  const paginatedListarEntregas = useMemo(() => {
+    const start = (listarCurrentPage - 1) * listarPageSize;
+    return filteredListarEntregas.slice(start, start + listarPageSize);
+  }, [filteredListarEntregas, listarCurrentPage, listarPageSize]);
 
   const handleGuardarVisitaDirecta = async (payload: any) => {
     if (!visitaModalSolicitud?.id_solicitud) return;
@@ -1368,8 +1493,77 @@ export const CatastrofesView: React.FC = () => {
     return selectedSubtipos.reduce((acc, sub) => acc + (cantidadesSubtipos[sub] || 1), 0);
   }, [selectedSubtipos, cantidadesSubtipos]);
 
+  // Determinar el perfil de ayuda aplicable según la solicitud o formulario (Dueño del inmueble, Ayuda humanitaria, Infraestructura, o Vía)
+  const perfilAyudaInfo = useMemo(() => {
+    const reqRef =
+      registroModo === 'ENTREGA_EXISTENTE' && selectedRequest
+        ? todasSolicitudes.find((s: any) => Number(s.id_solicitud) === Number(selectedRequest.id_solicitud)) || selectedRequest
+        : null;
+
+    const effTipoInmueble = normalizarTipoInmueble(
+      reqRef?.tipo_inmueble || tipoInmuebleActual || 'Vivienda'
+    );
+    const effSubtipo = (reqRef?.subtipo_emergencia || subtipoEmergencia || 'SOCIAL_E_INMUEBLE').toUpperCase();
+    const effTenencia = (reqRef?.tipo_tenencia || tipoTenencia || 'PROPIETARIO_RESIDENTE').toUpperCase();
+    const effEsPropietario =
+      reqRef?.es_propietario !== undefined && reqRef?.es_propietario !== null
+        ? Boolean(reqRef.es_propietario)
+        : esPropietario !== null
+          ? esPropietario
+          : effTenencia !== 'ARRENDATARIO';
+
+    if (effTipoInmueble === 'Vía') {
+      return {
+        codigo: 'VIA' as const,
+        titulo: 'Arreglo de Vía y Maquinaria',
+        descripcion: 'Se muestran únicamente las ayudas de maquinaria, insumos viales y materiales de obra (sin ayuda humanitaria).',
+        categoriasIds: [6, 9, 11],
+        paquetesKeys: ['ARREGLO_VIA', 'MATERIALES_OBRA'],
+      };
+    }
+
+    if (
+      effSubtipo === 'INMUEBLE' ||
+      effTenencia === 'PROPIETARIO_NO_RESIDENTE' ||
+      effTenencia === 'PROPIETARIO_NO_HABITANTE' ||
+      ['Colegio', 'Hospital', 'Inmueble Público'].includes(effTipoInmueble)
+    ) {
+      return {
+        codigo: 'INFRAESTRUCTURA' as const,
+        titulo: 'Solo Infraestructura / Materiales de Construcción',
+        descripcion: 'Se muestran únicamente materiales de construcción y vivienda (no aparece ayuda humanitaria ni arreglo de vías).',
+        categoriasIds: [6],
+        paquetesKeys: ['AFECTACION_VIVIENDA', 'MATERIALES_OBRA'],
+      };
+    }
+
+    if (effSubtipo === 'SOCIAL' || effTenencia === 'ARRENDATARIO' || effEsPropietario === false) {
+      return {
+        codigo: 'HUMANITARIA' as const,
+        titulo: 'Solo Ayuda Humanitaria y Alojamiento Temporal (Arrendatario / Social)',
+        descripcion: 'Se muestran únicamente ayudas humanitarias, kits de subsistencia y alojamiento temporal / subsidio de arrendamiento (sin materiales de construcción ni vías).',
+        categoriasIds: [1, 2, 3, 4, 5, 7, 8],
+        paquetesKeys: ['ALIMENTOS_ASEO', 'ADULTO_MAYOR'],
+      };
+    }
+
+    return {
+      codigo: 'DUENO_INTEGRAL' as const,
+      titulo: 'Dueño del Inmueble Residente (Vivienda, Materiales y Ayuda Humanitaria)',
+      descripcion: 'Al ser propietario residente del inmueble, aplica ayuda de vivienda, materiales de construcción, alojamiento temporal y asistencia humanitaria (sin vías).',
+      categoriasIds: [1, 2, 3, 4, 5, 6, 7, 8, 9],
+      paquetesKeys: ['AFECTACION_VIVIENDA', 'MATERIALES_OBRA', 'REFUGIO_TECHOS', 'ALIMENTOS_ASEO', 'ADULTO_MAYOR'],
+    };
+  }, [registroModo, selectedRequest, todasSolicitudes, tipoInmuebleActual, subtipoEmergencia, tipoTenencia, esPropietario]);
+
+  const categoriasDisponiblesParaAyuda = useMemo(() => {
+    return DISASTER_TYPOLOGIES.filter(
+      (t) => t.id !== 10 && perfilAyudaInfo.categoriasIds.includes(t.id)
+    );
+  }, [perfilAyudaInfo]);
+
   const filteredTipologias = useMemo(() => {
-    return DISASTER_TYPOLOGIES.map((tipo) => {
+    return categoriasDisponiblesParaAyuda.map((tipo) => {
       if (categoriaFiltro !== 0 && tipo.id !== categoriaFiltro) {
         return null;
       }
@@ -1384,7 +1578,7 @@ export const CatastrofesView: React.FC = () => {
         subtipos: subFiltrados,
       };
     }).filter(Boolean) as typeof DISASTER_TYPOLOGIES;
-  }, [busquedaSubtipo, categoriaFiltro]);
+  }, [categoriasDisponiblesParaAyuda, busquedaSubtipo, categoriaFiltro]);
 
   // Pastel styling for cards depending on severity
   const getCardPastelStyle = (sol: any) => {
@@ -1989,6 +2183,22 @@ export const CatastrofesView: React.FC = () => {
           tab: 1,
         });
       }
+
+      // Validar que no se cree duplicado para el mismo ciudadano o núcleo familiar en el mismo evento
+      if (!editingSolicitudId && (registroModo === 'SOLICITUD_SOLO' || registroModo === 'ENTREGA_DIRECTA')) {
+        const todosDocsForm = [
+          documento.trim(),
+          ...nucleoFamiliar.map((m) => m.documento?.trim()).filter(Boolean),
+        ].filter(Boolean);
+        const solDuplicada = encontrarSolicitudExistenteNucleo(todosDocsForm, idNucleoVinculado);
+        if (solDuplicada) {
+          motivos.push({
+            campo: 'Núcleo Familiar Ya Registrado',
+            mensaje: `Este núcleo familiar ya cuenta con la solicitud ${solDuplicada.codigo_solicitud || `SOL-${solDuplicada.id_solicitud}`} registrada en este evento a nombre de ${solDuplicada.nombre_completo}. Únicamente se permite registrar una solicitud por núcleo familiar.`,
+            tab: 1,
+          });
+        }
+      }
     }
 
     if (registroModo === 'ENTREGA_EXISTENTE' && selectedSubtipos.length === 0 && !cantidadAyuda) {
@@ -2013,29 +2223,43 @@ export const CatastrofesView: React.FC = () => {
   };
 
   // Cargar entrega para edición completa
-  const handleEditarEntrega = (entrega: any, detail: SolicitudDetailResponse) => {
+  const handleEditarEntrega = async (entrega: any, detail?: SolicitudDetailResponse | null) => {
+    setIsListarModalOpen(false);
     setEditingEntregaId(entrega.id_entrega);
     setEditingEntregaCodigo(entrega.codigo_entrega);
     setEditingSolicitudId(null);
     setEditingSolicitudCodigo(null);
 
+    let det: any = detail;
+    if (!det && entrega.id_solicitud) {
+      try {
+        det = await sacService.getSolicitudDetail(entrega.id_solicitud);
+      } catch (e) {
+        console.warn('No se pudo cargar detalle completo de la solicitud vinculada a la entrega:', e);
+      }
+    }
+
     // Cargar datos de la persona y de la entrega
-    setDocumento(detail.ciudadano?.documento || '');
-    setNombres(detail.ciudadano?.nombres || '');
-    setApellidos(detail.ciudadano?.apellidos || '');
-    setTelefono(detail.ciudadano?.telefono || '');
-    setDireccion(detail.ciudadano?.direccion || detail.direccion_afectacion || '');
-    if (detail.sector?.id_sector) setSectorId(detail.sector.id_sector);
-    if (detail.latitud_gps && detail.longitud_gps) {
-      setLatitud(detail.latitud_gps);
-      setLongitud(detail.longitud_gps);
+    setDocumento(det?.ciudadano?.documento || entrega.documento_receptor || entrega.documento || entrega.titular_documento || '');
+    setNombres(det?.ciudadano?.nombres || entrega.nombre_receptor || entrega.nombres || entrega.titular_nombres || '');
+    setApellidos(det?.ciudadano?.apellidos || entrega.apellidos || entrega.titular_apellidos || '');
+    setTelefono(det?.ciudadano?.telefono || entrega.telefono_receptor || entrega.telefono || '');
+    setDireccion(det?.ciudadano?.direccion || det?.direccion_afectacion || entrega.direccion_receptor || entrega.direccion || '');
+    if (det?.sector?.id_sector || entrega.id_sector) setSectorId(det?.sector?.id_sector || entrega.id_sector);
+    if (det?.latitud_gps && det?.longitud_gps) {
+      setLatitud(det.latitud_gps);
+      setLongitud(det.longitud_gps);
     }
     setCantidadAyuda(entrega.cantidad || 1);
     setObservaciones(entrega.observaciones || '');
     setFotosEntrega(Array.isArray(entrega.fotos) ? entrega.fotos.slice(0, 6) : []);
     setRegistroModo('ENTREGA_EXISTENTE');
+    if (det) {
+      setSelectedRequest(det);
+    }
     setActiveTab('formulario');
-    showToast(`Modo edición activado para Entrega ${entrega.codigo_entrega}`, 'warning');
+    setFormStepTab(5);
+    showToast(`Modo edición activado para Entrega ${entrega.codigo_entrega || `ENT-${entrega.id_entrega}`}`, 'warning');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -3707,18 +3931,30 @@ export const CatastrofesView: React.FC = () => {
             {/* Header */}
             <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-100">
               <div className="flex items-center gap-3">
-                <div className="w-10 h-10 rounded-2xl bg-[#007AFF]/10 text-[#007AFF] flex items-center justify-center shrink-0 border border-[#007AFF]/20">
-                  <List className="h-5 w-5" />
+                <div className={`w-10 h-10 rounded-2xl flex items-center justify-center shrink-0 border ${
+                  listarVistaModo === 'solicitudes'
+                    ? 'bg-[#007AFF]/10 text-[#007AFF] border-[#007AFF]/20'
+                    : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                }`}>
+                  {listarVistaModo === 'solicitudes' ? <List className="h-5 w-5" /> : <Package className="h-5 w-5" />}
                 </div>
                 <div>
                   <h3 className="text-base font-extrabold text-[#1D1D1F] flex items-center gap-2">
-                    <span>Listado Operativo de Solicitudes</span>
-                    <span className="text-[11px] font-black px-2.5 py-0.5 rounded-full bg-blue-50 text-[#007AFF] border border-blue-200">
-                      {filteredListarSolicitudes.length} de {todasSolicitudes.length}
+                    <span>{listarVistaModo === 'solicitudes' ? 'Listado Operativo de Solicitudes' : 'Listado de Entregas de Ayudas'}</span>
+                    <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full ${
+                      listarVistaModo === 'solicitudes'
+                        ? 'bg-blue-50 text-[#007AFF] border border-blue-200'
+                        : 'bg-emerald-50 text-emerald-800 border border-emerald-200'
+                    }`}>
+                      {listarVistaModo === 'solicitudes'
+                        ? `${filteredListarSolicitudes.length} de ${todasSolicitudes.length}`
+                        : `${filteredListarEntregas.length} de ${todasEntregas.length}`}
                     </span>
                   </h3>
                   <p className="text-xs text-[#6E6E73]">
-                    Atienda solicitudes (crear entregas), registre una o múltiples visitas técnicas, consulte expedientes o edite el censo.
+                    {listarVistaModo === 'solicitudes'
+                      ? 'Atienda solicitudes (crear entregas), registre una o múltiples visitas técnicas, consulte expedientes o edite el censo.'
+                      : 'Busque entregas por código ENT-, solicitud SOL-, beneficiario o materiales, y gestione o consulte los despachos.'}
                   </p>
                 </div>
               </div>
@@ -3745,6 +3981,51 @@ export const CatastrofesView: React.FC = () => {
               </div>
             </div>
 
+            {/* Selector de Modo: Solicitudes vs Entregas */}
+            <div className="flex items-center gap-2 p-1 bg-slate-100 rounded-2xl">
+              <button
+                type="button"
+                onClick={() => {
+                  setListarVistaModo('solicitudes');
+                  setListarCurrentPage(1);
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer ${
+                  listarVistaModo === 'solicitudes'
+                    ? 'bg-white text-slate-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <ClipboardList className="h-4 w-4 text-[#007AFF]" />
+                <span>Solicitudes Censadas</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  listarVistaModo === 'solicitudes' ? 'bg-blue-100 text-[#007AFF]' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {filteredListarSolicitudes.length}
+                </span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setListarVistaModo('entregas');
+                  setListarCurrentPage(1);
+                }}
+                className={`flex-1 py-2 px-3 rounded-xl text-xs font-black transition flex items-center justify-center gap-2 cursor-pointer ${
+                  listarVistaModo === 'entregas'
+                    ? 'bg-white text-emerald-900 shadow-xs'
+                    : 'text-slate-600 hover:text-slate-900'
+                }`}
+              >
+                <Package className="h-4 w-4 text-emerald-600" />
+                <span>Entregas de Ayudas Realizadas</span>
+                <span className={`text-[10px] font-black px-2 py-0.5 rounded-full ${
+                  listarVistaModo === 'entregas' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-600'
+                }`}>
+                  {filteredListarEntregas.length}
+                </span>
+              </button>
+            </div>
+
             {/* Unified Filter Bar (Same as Map) */}
             <div className="bg-slate-50 p-3 rounded-2xl border border-slate-200 space-y-2.5">
               <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-2.5">
@@ -3753,7 +4034,11 @@ export const CatastrofesView: React.FC = () => {
                   <input
                     type="text"
                     autoFocus
-                    placeholder="Buscar por cédula, nombre, apellido, sector, dirección o SOL-ID..."
+                    placeholder={
+                      listarVistaModo === 'solicitudes'
+                        ? 'Buscar por cédula, nombre, apellido, sector, dirección o SOL-ID...'
+                        : 'Buscar por código de entrega (ENT-), código solicitud (SOL-), cédula o nombre receptor, material o vereda...'
+                    }
                     value={listarSearchQuery}
                     onChange={(e) => setListarSearchQuery(e.target.value)}
                     className="w-full pl-9 pr-8 py-2 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-[#007AFF] outline-none text-[#1D1D1F] transition"
@@ -3769,42 +4054,49 @@ export const CatastrofesView: React.FC = () => {
                   )}
                 </div>
 
-                {/* Quick Status Pill (Todos / Pendientes / Atendidas) */}
-                <div className="grid grid-cols-3 sm:flex items-center bg-white border border-slate-200 rounded-xl p-1 gap-1">
-                  <button
-                    type="button"
-                    onClick={() => setListarEstadoFiltro('all')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      listarEstadoFiltro === 'all'
-                        ? 'bg-slate-900 text-white shadow-xs font-black'
-                        : 'text-slate-600 hover:text-slate-900'
-                    }`}
-                  >
-                    Todos ({todasSolicitudes.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setListarEstadoFiltro('pending')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      listarEstadoFiltro === 'pending'
-                        ? 'bg-rose-600 text-white shadow-xs font-black'
-                        : 'text-rose-700 hover:bg-rose-50'
-                    }`}
-                  >
-                    Pendientes ({solicitudesPendientes.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setListarEstadoFiltro('completed')}
-                    className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
-                      listarEstadoFiltro === 'completed'
-                        ? 'bg-emerald-600 text-white shadow-xs font-black'
-                        : 'text-emerald-700 hover:bg-emerald-50'
-                    }`}
-                  >
-                    Atendidas ({Math.max(0, todasSolicitudes.length - solicitudesPendientes.length)})
-                  </button>
-                </div>
+                {/* Quick Status Pill */}
+                {listarVistaModo === 'solicitudes' ? (
+                  <div className="grid grid-cols-3 sm:flex items-center bg-white border border-slate-200 rounded-xl p-1 gap-1">
+                    <button
+                      type="button"
+                      onClick={() => setListarEstadoFiltro('all')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                        listarEstadoFiltro === 'all'
+                          ? 'bg-slate-900 text-white shadow-xs font-black'
+                          : 'text-slate-600 hover:text-slate-900'
+                      }`}
+                    >
+                      Todos ({todasSolicitudes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setListarEstadoFiltro('pending')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                        listarEstadoFiltro === 'pending'
+                          ? 'bg-rose-600 text-white shadow-xs font-black'
+                          : 'text-rose-700 hover:bg-rose-50'
+                      }`}
+                    >
+                      Pendientes ({solicitudesPendientes.length})
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setListarEstadoFiltro('completed')}
+                      className={`px-3 py-1.5 text-xs font-bold rounded-lg transition cursor-pointer ${
+                        listarEstadoFiltro === 'completed'
+                          ? 'bg-emerald-600 text-white shadow-xs font-black'
+                          : 'text-emerald-700 hover:bg-emerald-50'
+                      }`}
+                    >
+                      Atendidas ({Math.max(0, todasSolicitudes.length - solicitudesPendientes.length)})
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center bg-white border border-slate-200 rounded-xl px-3 py-1.5 gap-2 text-xs font-bold text-slate-700">
+                    <PackageCheck className="h-4 w-4 text-emerald-600" />
+                    <span>{filteredListarEntregas.length} entregas encontradas</span>
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
@@ -3835,17 +4127,24 @@ export const CatastrofesView: React.FC = () => {
                 </select>
 
                 <div className="flex items-center gap-1.5">
-                  <select
-                    value={listarNivelDanoFiltro}
-                    onChange={(e) => setListarNivelDanoFiltro(e.target.value)}
-                    className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer truncate"
-                  >
-                    <option value="ALL">Todos los Niveles de Daño</option>
-                    <option value="Colapso Total">🔴 Colapso Total / Daño Grave</option>
-                    <option value="Grave">🟠 Daño Moderado / Grave</option>
-                    <option value="Leve">🟡 Daño Leve</option>
-                    <option value="Ninguno">⚪ Sin Afectación</option>
-                  </select>
+                  {listarVistaModo === 'solicitudes' ? (
+                    <select
+                      value={listarNivelDanoFiltro}
+                      onChange={(e) => setListarNivelDanoFiltro(e.target.value)}
+                      className="flex-1 px-3 py-2 bg-white border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer truncate"
+                    >
+                      <option value="ALL">Todos los Niveles de Daño</option>
+                      <option value="Colapso Total">🔴 Colapso Total / Daño Grave</option>
+                      <option value="Grave">🟠 Daño Moderado / Grave</option>
+                      <option value="Leve">🟡 Daño Leve</option>
+                      <option value="Ninguno">⚪ Sin Afectación</option>
+                    </select>
+                  ) : (
+                    <div className="flex-1 px-3 py-2 bg-slate-100 rounded-xl text-xs font-bold text-slate-600 truncate flex items-center gap-1.5">
+                      <Truck className="h-3.5 w-3.5 text-slate-500" />
+                      <span>{todasEntregas.length} entregas totales</span>
+                    </div>
+                  )}
                   <button
                     type="button"
                     onClick={() => fetchSolicitudes()}
@@ -3860,166 +4159,303 @@ export const CatastrofesView: React.FC = () => {
 
             {/* Scrollable Results List */}
             <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[54vh]">
-              {filteredListarSolicitudes.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-100">
-                  <FileText className="h-8 w-8 mx-auto text-slate-300" />
-                  <p className="text-sm font-semibold text-slate-600">No se encontraron solicitudes</p>
-                  <p className="text-xs text-slate-400">
-                    Ajusta los filtros de estado, sector, nivel de daño o búsqueda.
-                  </p>
-                </div>
-              ) : (
-                paginatedListarSolicitudes.map((sol: any) => {
-                  const isPending = sol.estado_codigo === 'pending';
-                  const numVisitas = sol.total_visitas ?? (sol.visita ? 1 : 0);
-                  const numEntregas = sol.total_entregas ?? (sol.tiene_entrega ? 1 : 0);
-                  return (
-                    <div
-                      key={sol.id_solicitud}
-                      className={`p-3.5 rounded-2xl border transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 hover:shadow-md ${getCardPastelStyle(sol)}`}
-                    >
-                      <div className="space-y-1.5 min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-black bg-white text-slate-900 border border-slate-200 shadow-2xs">
-                            {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
-                          </span>
-                          <span
-                            className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
-                              isPending
-                                ? 'bg-rose-100 text-rose-800 border-rose-200'
-                                : 'bg-emerald-100 text-emerald-800 border-emerald-200'
-                            }`}
-                          >
-                            {isPending ? 'Pendiente de Entrega' : `✓ Atendida (${numEntregas} entrega${numEntregas === 1 ? '' : 's'})`}
-                          </span>
-                          <span
-                            className={`font-black text-[10px] px-2 py-0.5 rounded-md ${
-                              sol.afectacion_nivel === 'Colapso Total'
-                                ? 'bg-rose-600 text-white'
-                                : sol.afectacion_nivel === 'Grave'
-                                  ? 'bg-amber-500 text-slate-950'
-                                  : sol.afectacion_nivel === 'Leve'
-                                    ? 'bg-slate-700 text-white'
-                                    : 'bg-slate-200 text-slate-700'
-                            }`}
-                          >
-                            Daño: {sol.afectacion_nivel || 'Sin Evaluar'}
-                          </span>
+              {listarVistaModo === 'solicitudes' ? (
+                filteredListarSolicitudes.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-100">
+                    <FileText className="h-8 w-8 mx-auto text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">No se encontraron solicitudes</p>
+                    <p className="text-xs text-slate-400">
+                      Ajusta los filtros de estado, sector, nivel de daño o búsqueda.
+                    </p>
+                  </div>
+                ) : (
+                  paginatedListarSolicitudes.map((sol: any) => {
+                    const isPending = sol.estado_codigo === 'pending';
+                    const numVisitas = sol.total_visitas ?? (sol.visita ? 1 : 0);
+                    const numEntregas = sol.total_entregas ?? (sol.tiene_entrega ? 1 : 0);
+                    return (
+                      <div
+                        key={sol.id_solicitud}
+                        className={`p-3.5 rounded-2xl border transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 hover:shadow-md ${getCardPastelStyle(sol)}`}
+                      >
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-black bg-white text-slate-900 border border-slate-200 shadow-2xs">
+                              {sol.codigo_solicitud || `SOL-${sol.id_solicitud}`}
+                            </span>
+                            <span
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border ${
+                                isPending
+                                  ? 'bg-rose-100 text-rose-800 border-rose-200'
+                                  : 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                              }`}
+                            >
+                              {isPending ? 'Pendiente de Entrega' : `✓ Atendida (${numEntregas} entrega${numEntregas === 1 ? '' : 's'})`}
+                            </span>
+                            <span
+                              className={`font-black text-[10px] px-2 py-0.5 rounded-md ${
+                                sol.afectacion_nivel === 'Colapso Total'
+                                  ? 'bg-rose-600 text-white'
+                                  : sol.afectacion_nivel === 'Grave'
+                                    ? 'bg-amber-500 text-slate-950'
+                                    : sol.afectacion_nivel === 'Leve'
+                                      ? 'bg-slate-700 text-white'
+                                      : 'bg-slate-200 text-slate-700'
+                              }`}
+                            >
+                              Daño: {sol.afectacion_nivel || 'Sin Evaluar'}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailModalInitialTab('visitas');
+                                setDetailedRequestId(sol.id_solicitud);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className={`text-[10px] font-black px-2 py-0.5 rounded-full border transition cursor-pointer flex items-center gap-1 ${
+                                numVisitas > 0
+                                  ? 'bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200'
+                                  : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
+                              }`}
+                              title="Ver historial de visitas técnicas de esta solicitud"
+                            >
+                              <ClipboardCheck className="h-3 w-3 text-indigo-600" />
+                              <span>{numVisitas} Visita{numVisitas === 1 ? '' : 's'} Técnica{numVisitas === 1 ? '' : 's'}</span>
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <strong className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-slate-500" />
+                              {sol.nombre_completo || `${sol.nombres || ''} ${sol.apellidos || ''}`}
+                            </strong>
+                            <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                              C.C. {sol.documento}
+                            </span>
+                            {sol.telefono && (
+                              <span className="text-[11px] text-slate-500 font-mono">
+                                📞 {sol.telefono}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
+                            {sol.nombre_sector && (
+                              <span className="flex items-center gap-1 font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded-lg border border-slate-200">
+                                <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                                {sol.nombre_sector}
+                              </span>
+                            )}
+                            {(sol.direccion_afectacion || sol.direccion) && (
+                              <span className="truncate max-w-[260px] text-[11px]">
+                                {sol.direccion_afectacion || sol.direccion}
+                              </span>
+                            )}
+                            {sol.fecha_solicitud && (
+                              <span className="text-[11px] font-mono text-slate-400">
+                                {sol.fecha_solicitud}
+                              </span>
+                            )}
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción Directa: Ver Detalle, Visita Técnica (Re-evaluar Vivienda), Atender (Entrega), Editar */}
+                        <div className="shrink-0 flex flex-wrap items-center gap-1.5 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
                           <button
                             type="button"
                             onClick={() => {
-                              setDetailModalInitialTab('visitas');
+                              setDetailModalInitialTab('censo');
                               setDetailedRequestId(sol.id_solicitud);
                               setIsDetailModalOpen(true);
                             }}
-                            className={`text-[10px] font-black px-2 py-0.5 rounded-full border transition cursor-pointer flex items-center gap-1 ${
-                              numVisitas > 0
-                                ? 'bg-indigo-100 text-indigo-900 border-indigo-300 hover:bg-indigo-200'
-                                : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-100'
-                            }`}
-                            title="Ver historial de visitas técnicas de esta solicitud"
+                            className="px-2.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Ver expediente completo"
                           >
-                            <ClipboardCheck className="h-3 w-3 text-indigo-600" />
-                            <span>{numVisitas} Visita{numVisitas === 1 ? '' : 's'} Técnica{numVisitas === 1 ? '' : 's'}</span>
+                            <Eye className="h-3.5 w-3.5 text-amber-300" />
+                            <span>Detalle</span>
                           </button>
-                        </div>
 
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <strong className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
-                            <User className="h-3.5 w-3.5 text-slate-500" />
-                            {sol.nombre_completo || `${sol.nombres || ''} ${sol.apellidos || ''}`}
-                          </strong>
-                          <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
-                            C.C. {sol.documento}
-                          </span>
-                          {sol.telefono && (
-                            <span className="text-[11px] text-slate-500 font-mono">
-                              📞 {sol.telefono}
-                            </span>
-                          )}
-                        </div>
-
-                        <div className="flex items-center gap-3 text-xs text-slate-600 flex-wrap">
-                          {sol.nombre_sector && (
-                            <span className="flex items-center gap-1 font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded-lg border border-slate-200">
-                              <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
-                              {sol.nombre_sector}
-                            </span>
-                          )}
-                          {(sol.direccion_afectacion || sol.direccion) && (
-                            <span className="truncate max-w-[260px] text-[11px]">
-                              {sol.direccion_afectacion || sol.direccion}
-                            </span>
-                          )}
-                          {sol.fecha_solicitud && (
-                            <span className="text-[11px] font-mono text-slate-400">
-                              {sol.fecha_solicitud}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-
-                      {/* Botones de Acción Directa: Ver Detalle, Visita Técnica (Re-evaluar Vivienda), Atender (Entrega), Editar */}
-                      <div className="shrink-0 flex flex-wrap items-center gap-1.5 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setDetailModalInitialTab('censo');
-                            setDetailedRequestId(sol.id_solicitud);
-                            setIsDetailModalOpen(true);
-                          }}
-                          className="px-2.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                          title="Ver expediente completo"
-                        >
-                          <Eye className="h-3.5 w-3.5 text-amber-300" />
-                          <span>Detalle</span>
-                        </button>
-
-                        <button
-                          type="button"
-                          onClick={() => handleIniciarVisitaTecnica(sol)}
-                          className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                          title="Realizar visita técnica para re-evaluar la vivienda y verificar lo reportado en la solicitud"
-                        >
-                          <ClipboardCheck className="h-3.5 w-3.5" />
-                          <span>Visita Técnica ({numVisitas})</span>
-                        </button>
-
-                        {!isCensoOnlyUser && (
                           <button
                             type="button"
-                            onClick={() => {
-                              setSelectedRequest(sol);
-                              setRegistroModo('ENTREGA_EXISTENTE');
-                              setActiveTab('formulario');
-                              setFormStepTab(5);
-                              setIsListarModalOpen(false);
-                              showToast(
-                                `Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para registrar entrega de ayudas.`,
-                                'success'
-                              );
-                            }}
-                            className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Atender solicitud y registrar una entrega de ayuda"
+                            onClick={() => handleIniciarVisitaTecnica(sol)}
+                            className="px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Realizar visita técnica para re-evaluar la vivienda y verificar lo reportado en la solicitud"
                           >
-                            <Package className="h-3.5 w-3.5" />
-                            <span>Atender (Entrega)</span>
+                            <ClipboardCheck className="h-3.5 w-3.5" />
+                            <span>Visita Técnica ({numVisitas})</span>
                           </button>
-                        )}
 
-                        <button
-                          type="button"
-                          onClick={() => handleEditarSolicitud(sol, 'SOLICITUD_SOLO')}
-                          className="px-2.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
-                          title="Cargar en el formulario para editar datos generales de la solicitud"
-                        >
-                          <Pencil className="h-3.5 w-3.5 text-amber-700" />
-                          <span>Editar</span>
-                        </button>
+                          {!isCensoOnlyUser && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setSelectedRequest(sol);
+                                setRegistroModo('ENTREGA_EXISTENTE');
+                                setActiveTab('formulario');
+                                setFormStepTab(5);
+                                setIsListarModalOpen(false);
+                                showToast(
+                                  `Solicitud ${sol.codigo_solicitud || `SOL-${sol.id_solicitud}`} cargada para registrar entrega de ayudas.`,
+                                  'success'
+                                );
+                              }}
+                              className="px-3 py-2 rounded-xl bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="Atender solicitud y registrar una entrega de ayuda"
+                            >
+                              <Package className="h-3.5 w-3.5" />
+                              <span>Atender (Entrega)</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditarSolicitud(sol, 'SOLICITUD_SOLO')}
+                            className="px-2.5 py-2 rounded-xl bg-amber-50 hover:bg-amber-100 text-amber-950 border border-amber-300 text-[11px] font-extrabold transition flex items-center gap-1 cursor-pointer"
+                            title="Cargar en el formulario para editar datos generales de la solicitud"
+                          >
+                            <Pencil className="h-3.5 w-3.5 text-amber-700" />
+                            <span>Editar</span>
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  );
-                })
+                    );
+                  })
+                )
+              ) : (
+                filteredListarEntregas.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 space-y-2 bg-slate-50 rounded-2xl border border-slate-100">
+                    <Package className="h-8 w-8 mx-auto text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-600">No se encontraron entregas de ayudas</p>
+                    <p className="text-xs text-slate-400">
+                      Verifique los filtros de búsqueda por entrega (ENT-), solicitud (SOL-), cédula o sector.
+                    </p>
+                  </div>
+                ) : (
+                  paginatedListarEntregas.map((ent: any) => {
+                    const itemsArray = Array.isArray(ent.items) ? ent.items : [];
+                    const resumenTexto =
+                      ent.items_resumen ||
+                      (itemsArray.length > 0
+                        ? itemsArray.map((it: any) => `${it.cantidad_entregada ?? it.cantidad ?? 1}x ${it.nombre_item || it.nombre_paquete || 'Ítem'}`).join(', ')
+                        : 'Ayuda humanitaria o materiales registrados');
+                    const totalItems =
+                      ent.cantidad_total_items ??
+                      (itemsArray.reduce((acc: number, it: any) => acc + Number(it.cantidad_entregada ?? it.cantidad ?? 0), 0) || 1);
+                    const solRelacionada = todasSolicitudes.find(
+                      (s: any) => Number(s.id_solicitud) === Number(ent.id_solicitud)
+                    );
+
+                    return (
+                      <div
+                        key={ent.id_entrega}
+                        className="p-3.5 rounded-2xl border border-emerald-200/90 bg-emerald-50/30 hover:bg-emerald-50/60 transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 hover:shadow-md"
+                      >
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-black bg-emerald-700 text-white shadow-2xs">
+                              {ent.codigo_entrega || `ENT-${ent.id_entrega}`}
+                            </span>
+                            {ent.codigo_solicitud || ent.id_solicitud ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDetailModalInitialTab('censo');
+                                  setDetailedRequestId(ent.id_solicitud);
+                                  setIsDetailModalOpen(true);
+                                }}
+                                className="text-xs font-mono font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 border border-blue-200 hover:bg-blue-200 transition cursor-pointer flex items-center gap-1"
+                                title="Ver expediente de la solicitud asignada"
+                              >
+                                <FileText className="h-3 w-3 text-blue-700" />
+                                <span>{ent.codigo_solicitud || `SOL-${ent.id_solicitud}`}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-200 text-slate-700">
+                                Entrega Inmediata
+                              </span>
+                            )}
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ✓ Entregada ({totalItems} ítems)
+                            </span>
+                            {ent.fecha_entrega && (
+                              <span className="text-[11px] font-mono text-slate-500">
+                                📅 {ent.fecha_entrega}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <strong className="text-xs sm:text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-slate-500" />
+                              {ent.nombre_receptor || ent.titular_nombre || ent.nombre_completo || 'Receptor'}
+                            </strong>
+                            {(ent.documento_receptor || ent.documento || ent.titular_documento) && (
+                              <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                C.C. {ent.documento_receptor || ent.documento || ent.titular_documento}
+                              </span>
+                            )}
+                            {ent.parentesco_con_jefe && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                {ent.parentesco_con_jefe}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                            {(ent.nombre_sector || solRelacionada?.nombre_sector) && (
+                              <span className="flex items-center gap-1 font-bold text-slate-700 bg-white/80 px-2 py-0.5 rounded-lg border border-slate-200">
+                                <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                                {ent.nombre_sector || solRelacionada?.nombre_sector}
+                              </span>
+                            )}
+                            {(ent.direccion_receptor || solRelacionada?.direccion_afectacion || solRelacionada?.direccion) && (
+                              <span className="truncate max-w-[260px] text-[11px]">
+                                {ent.direccion_receptor || solRelacionada?.direccion_afectacion || solRelacionada?.direccion}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Resumen de Insumos Entregados */}
+                          <div className="p-2 bg-white/90 rounded-xl border border-emerald-200/70 text-xs text-slate-700 flex items-start gap-1.5 mt-1">
+                            <Package className="h-3.5 w-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="font-medium line-clamp-2">
+                              <strong className="font-bold text-slate-900">Ayudas entregadas:</strong> {resumenTexto}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción para la Entrega */}
+                        <div className="shrink-0 flex flex-wrap items-center gap-1.5 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-200/60">
+                          {ent.id_solicitud && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailModalInitialTab('censo');
+                                setDetailedRequestId(ent.id_solicitud);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="px-2.5 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="Ver expediente y detalles de la solicitud"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-amber-300" />
+                              <span>Ver Solicitud</span>
+                            </button>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => handleEditarEntrega(ent)}
+                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Editar o consultar los ítems de esta entrega"
+                          >
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span>Gestionar Entrega</span>
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })
+                )
               )}
             </div>
 
@@ -4029,12 +4465,19 @@ export const CatastrofesView: React.FC = () => {
                 <span>
                   Mostrando{' '}
                   <strong className="text-slate-900">
-                    {filteredListarSolicitudes.length === 0
+                    {(listarVistaModo === 'solicitudes' ? filteredListarSolicitudes.length : filteredListarEntregas.length) === 0
                       ? 0
                       : (listarCurrentPage - 1) * listarPageSize + 1}
-                    –{Math.min(listarCurrentPage * listarPageSize, filteredListarSolicitudes.length)}
+                    –{Math.min(
+                      listarCurrentPage * listarPageSize,
+                      listarVistaModo === 'solicitudes' ? filteredListarSolicitudes.length : filteredListarEntregas.length
+                    )}
                   </strong>{' '}
-                  de <strong className="text-slate-900">{filteredListarSolicitudes.length}</strong> solicitudes
+                  de{' '}
+                  <strong className="text-slate-900">
+                    {listarVistaModo === 'solicitudes' ? filteredListarSolicitudes.length : filteredListarEntregas.length}
+                  </strong>{' '}
+                  {listarVistaModo === 'solicitudes' ? 'solicitudes' : 'entregas'}
                 </span>
                 <select
                   value={listarPageSize}
@@ -5975,7 +6418,7 @@ export const CatastrofesView: React.FC = () => {
                             {resultadosBusquedaPersonas.map((p) => (
                               <div
                                 key={`per-${p.id_persona}`}
-                                onClick={() => {
+                                onClick={async () => {
                                   setDocumento(p.documento || '');
                                   setNombres(p.nombres || '');
                                   setApellidos(p.apellidos || '');
@@ -5985,19 +6428,27 @@ export const CatastrofesView: React.FC = () => {
                                   if (p.id_nucleo) {
                                     setIdNucleoVinculado(p.id_nucleo);
                                     setNombreNucleoVinculado(p.nombre_nucleo || p.codigo_nucleo || '');
+                                    try {
+                                      const nucRes = await apiClient.get(`/nucleos-familiares/por-documento/${encodeURIComponent(p.documento || '')}`);
+                                      if (nucRes.data?.nucleo_familiar) {
+                                        cargarDatosDesdeNucleo(nucRes.data.nucleo_familiar, p);
+                                      }
+                                    } catch {}
                                   }
                                   setMostrarResultadosBusqueda(false);
-                                  showToast(`Persona ${p.nombres} ${p.apellidos} cargada.`, 'success');
+                                  showToast(`Persona ${p.nombres} ${p.apellidos} y núcleo familiar cargados.`, 'success');
                                 }}
                                 className="p-2 rounded-lg border border-blue-100 hover:bg-blue-50 cursor-pointer flex items-center justify-between text-xs"
                               >
                                 <div>
                                   <strong className="text-slate-900">{p.nombres} {p.apellidos}</strong>
                                   <span className="font-mono text-slate-600 ml-1.5">(CC: {p.documento})</span>
+                                  {p.nombre_rol && <span className="ml-1.5 px-1.5 py-0.2 rounded bg-indigo-50 text-indigo-700 text-[10px] font-bold">{p.nombre_rol}</span>}
+                                  {p.nombre_nucleo && <span className="text-slate-500 ml-2">• Núcleo: {p.nombre_nucleo}</span>}
                                   <span className="text-slate-500 ml-2">• Sector: {p.nombre_sector || 'S/D'}</span>
                                 </div>
                                 <span className="px-2 py-0.5 bg-blue-600 text-white rounded text-[10px] font-bold">
-                                  Cargar Persona
+                                  Cargar
                                 </span>
                               </div>
                             ))}
@@ -6271,75 +6722,6 @@ export const CatastrofesView: React.FC = () => {
                             <MapPin className="h-3.5 w-3.5" />
                             <span>Fijar en Mapa</span>
                           </button>
-                        </div>
-                      </div>
-
-                      {/* Sub-card: Datos Complementarios del Núcleo Familiar */}
-                      <div className="p-3.5 sm:p-4 bg-slate-50/70 rounded-2xl border border-slate-200 space-y-3">
-                        <span className="text-[11px] font-black text-slate-600 uppercase tracking-wider block">
-                          Datos Complementarios del Núcleo Familiar (Opcionales):
-                        </span>
-                        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2.5">
-                          <div className="min-w-0">
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Edad (Años)</label>
-                            <input
-                              type="number"
-                              value={edad}
-                              onChange={(e) => setEdad(e.target.value)}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">¿Es Propietario?</label>
-                            <select
-                              value={esPropietario === null ? '' : esPropietario ? 'SI' : 'NO'}
-                              onChange={(e) => setEsPropietario(e.target.value === '' ? null : e.target.value === 'SI')}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 truncate box-border cursor-pointer"
-                            >
-                              <option value="">Seleccione...</option>
-                              <option value="SI">SI</option>
-                              <option value="NO">NO</option>
-                            </select>
-                          </div>
-                          <div className="min-w-0">
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Acompañantes</label>
-                            <input
-                              type="number"
-                              value={hayAcompanantes ? numAcompanantes : 0}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value) || 0;
-                                setNumAcompanantes(v);
-                                setHayAcompanantes(v > 0);
-                              }}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
-                            />
-                          </div>
-                          <div className="min-w-0">
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Adultos Mayores</label>
-                            <input
-                              type="number"
-                              value={hayAdultosMayores ? numAdultosMayores : 0}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value) || 0;
-                                setNumAdultosMayores(v);
-                                setHayAdultosMayores(v > 0);
-                              }}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
-                            />
-                          </div>
-                          <div className="min-w-0 col-span-2 sm:col-span-1">
-                            <label className="block text-[10px] font-bold text-slate-600 mb-1 truncate">Niños</label>
-                            <input
-                              type="number"
-                              value={hayNinos ? numNinos : 0}
-                              onChange={(e) => {
-                                const v = parseInt(e.target.value) || 0;
-                                setNumNinos(v);
-                                setHayNinos(v > 0);
-                              }}
-                              className="w-full px-2.5 py-1.5 bg-white border border-slate-300 rounded-lg text-xs min-w-0 box-border"
-                            />
-                          </div>
                         </div>
                       </div>
 
@@ -8713,12 +9095,30 @@ export const CatastrofesView: React.FC = () => {
 
                   {/* Fast Presets & Filters */}
                   <div className="p-4 sm:p-5 bg-slate-50 border-b border-slate-200 space-y-3">
+                    {/* Banner Informativo de Ayudas Disponibles Según Perfil */}
+                    <div className="p-3.5 rounded-2xl bg-blue-50/90 border border-blue-200 flex items-start gap-3 shadow-2xs">
+                      <div className="w-8 h-8 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0 mt-0.5 border border-blue-200">
+                        <Info className="h-4 w-4" />
+                      </div>
+                      <div className="text-xs space-y-1 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <strong className="text-blue-950 font-extrabold text-sm">{perfilAyudaInfo.titulo}</strong>
+                          <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-blue-200/80 text-blue-900 border border-blue-300">
+                            Filtro Inteligente de Elegibilidad
+                          </span>
+                        </div>
+                        <p className="text-blue-800 leading-relaxed font-medium">{perfilAyudaInfo.descripcion}</p>
+                      </div>
+                    </div>
+
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <span className="text-[11px] font-extrabold text-slate-600 uppercase">
                         Paquetes Rápidos de Emergencia:
                       </span>
                       <div className="flex flex-wrap gap-2">
-                        {Object.entries(PRESET_PACKAGES).map(([key, pkg]) => {
+                        {Object.entries(PRESET_PACKAGES)
+                          .filter(([key]) => perfilAyudaInfo.paquetesKeys.includes(key))
+                          .map(([key, pkg]) => {
                           const active = isPaqueteActivo(key);
                           return (
                             <button
@@ -8748,6 +9148,7 @@ export const CatastrofesView: React.FC = () => {
                           type="text"
                           value={busquedaSubtipo}
                           onChange={(e) => setBusquedaSubtipo(e.target.value)}
+                          placeholder="Buscar ayuda o material en el listado..."
                           className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none"
                         />
                       </div>
@@ -8759,8 +9160,8 @@ export const CatastrofesView: React.FC = () => {
                           onChange={(e) => setCategoriaFiltro(Number(e.target.value))}
                           className="w-full pl-10 pr-3.5 py-2.5 bg-white border border-slate-300 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-rose-500 outline-none cursor-pointer"
                         >
-                          <option value={0}>Todas las Categorías de Atención ({DISASTER_TYPOLOGIES.filter((t) => t.id !== 10).length})</option>
-                          {DISASTER_TYPOLOGIES.map((t) => (
+                          <option value={0}>Todas las Categorías Permitidas ({categoriasDisponiblesParaAyuda.length})</option>
+                          {categoriasDisponiblesParaAyuda.map((t) => (
                             <option key={t.id} value={t.id}>
                               {t.nombre}
                             </option>
@@ -10202,53 +10603,276 @@ export const CatastrofesView: React.FC = () => {
             </div>
           )}
 
-          {/* ======================= TAB 3: HISTORIAL ======================= */}
+          {/* ======================= TAB 3: HISTORIAL Y LISTADO DE ENTREGAS ======================= */}
           {activeTab === 'historial' && (
-            <div className="bg-white rounded-3xl p-4 sm:p-6 shadow-xs border border-slate-200 space-y-4">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+            <div className="space-y-4">
+              {/* Header */}
+              <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-200 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-3">
+                  <div className="w-11 h-11 rounded-2xl bg-emerald-50 text-emerald-700 flex items-center justify-center border border-emerald-200">
+                    <Truck className="h-6 w-6" />
+                  </div>
+                  <div>
+                    <h2 className="text-base sm:text-lg font-extrabold text-slate-900 flex items-center gap-2">
+                      <span>Listado y Trazabilidad de Entregas de Ayudas</span>
+                      <span className="text-xs font-black px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-200">
+                        {todasEntregas.length} entregas registradas
+                      </span>
+                    </h2>
+                    <p className="text-xs text-slate-500">
+                      Búsqueda integral de entregas por código ENT-, solicitud SOL-, beneficiario, sector o insumos entregados.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="flex items-center gap-2">
-                  <ListCheck className="h-5 w-5 text-blue-700" />
-                  <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
-                    Historial de Registros Realizados en esta Sesión ({historialRegistros.length})
-                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRegistroModo('ENTREGA_DIRECTA');
+                      setActiveTab('formulario');
+                      setFormStepTab(5);
+                    }}
+                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" />
+                    <span>Nueva Entrega</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => fetchSolicitudes()}
+                    className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-100 text-slate-600 transition cursor-pointer"
+                    title="Actualizar listado de entregas"
+                  >
+                    <RefreshCw className="h-4 w-4" />
+                  </button>
                 </div>
               </div>
 
-              {historialRegistros.length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-xs bg-slate-50 rounded-2xl border border-slate-100">
-                  Aún no has realizado registros durante esta sesión.
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {historialRegistros.map((item, idx) => (
-                    <div
-                      key={idx}
-                      className="p-3.5 rounded-2xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3"
-                    >
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-xs font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded">
-                            {item.codigo_solicitud || item.codigo_entrega || `REG-#${idx + 1}`}
-                          </span>
-                          <span className="text-xs font-extrabold text-slate-900">{item.mensaje}</span>
-                        </div>
-                      </div>
+              {/* Filtros de Búsqueda de Entregas */}
+              <div className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 space-y-3">
+                <div className="flex flex-col lg:flex-row items-stretch lg:items-center justify-between gap-3">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
+                    <input
+                      type="text"
+                      placeholder="Buscar por código entrega (ENT-), código solicitud (SOL-), cédula o nombre, insumos o sector..."
+                      value={historialSearchQuery}
+                      onChange={(e) => setHistorialSearchQuery(e.target.value)}
+                      className="w-full pl-10 pr-9 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-emerald-500 outline-none text-[#1D1D1F] transition"
+                    />
+                    {historialSearchQuery && (
+                      <button
+                        type="button"
+                        onClick={() => setHistorialSearchQuery('')}
+                        className="absolute right-3 top-3 text-slate-400 hover:text-slate-700 cursor-pointer"
+                      >
+                        <X className="h-4 w-4" />
+                      </button>
+                    )}
+                  </div>
 
-                      <div className="flex items-center gap-2">
-                        {item.id_solicitud && (
+                  <div className="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                    <select
+                      value={selectedEventoId || 'ALL'}
+                      onChange={(e) => {
+                        const val = e.target.value === 'ALL' ? null : Number(e.target.value);
+                        setSelectedEventoId(val);
+                      }}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer"
+                    >
+                      <option value="ALL">Todos los Eventos</option>
+                      {eventos.map((ev) => (
+                        <option key={ev.id_evento} value={ev.id_evento}>
+                          {ev.nombre_evento}
+                        </option>
+                      ))}
+                    </select>
+
+                    <select
+                      value={historialSectorFiltro}
+                      onChange={(e) => setHistorialSectorFiltro(e.target.value === 'ALL' ? 'ALL' : Number(e.target.value))}
+                      className="px-3 py-2 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold text-[#1D1D1F] outline-none cursor-pointer"
+                    >
+                      <option value="ALL">Todos los Sectores / Veredas</option>
+                      {sectores.map((sec) => (
+                        <option key={sec.id_sector} value={sec.id_sector}>
+                          {sec.nombre_sector}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              {/* Listado de Entregas */}
+              <div className="space-y-3">
+                {filteredHistorialEntregas.length === 0 ? (
+                  <div className="bg-white rounded-3xl p-12 text-center text-slate-400 space-y-3 border border-slate-200">
+                    <Package className="h-10 w-10 mx-auto text-slate-300" />
+                    <p className="text-sm font-semibold text-slate-700">No se encontraron entregas de ayudas</p>
+                    <p className="text-xs text-slate-400 max-w-md mx-auto">
+                      No hay registros de entregas que coincidan con la búsqueda por código ENT-, código SOL-, receptor o sector.
+                    </p>
+                  </div>
+                ) : (
+                  filteredHistorialEntregas.map((ent: any) => {
+                    const itemsArray = Array.isArray(ent.items) ? ent.items : [];
+                    const resumenTexto =
+                      ent.items_resumen ||
+                      (itemsArray.length > 0
+                        ? itemsArray.map((it: any) => `${it.cantidad_entregada ?? it.cantidad ?? 1}x ${it.nombre_item || it.nombre_paquete || 'Ítem'}`).join(', ')
+                        : 'Ayudas registradas');
+                    const totalItems =
+                      ent.cantidad_total_items ??
+                      (itemsArray.reduce((acc: number, it: any) => acc + Number(it.cantidad_entregada ?? it.cantidad ?? 0), 0) || 1);
+                    const solRelacionada = todasSolicitudes.find(
+                      (s: any) => Number(s.id_solicitud) === Number(ent.id_solicitud)
+                    );
+
+                    return (
+                      <div
+                        key={ent.id_entrega}
+                        className="bg-white rounded-2xl p-4 shadow-xs border border-slate-200 hover:border-emerald-300 transition-all flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 hover:shadow-sm"
+                      >
+                        <div className="space-y-1.5 min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <span className="px-2.5 py-0.5 rounded-lg text-xs font-mono font-black bg-emerald-700 text-white shadow-2xs">
+                              {ent.codigo_entrega || `ENT-${ent.id_entrega}`}
+                            </span>
+                            {ent.codigo_solicitud || ent.id_solicitud ? (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setDetailModalInitialTab('censo');
+                                  setDetailedRequestId(ent.id_solicitud);
+                                  setIsDetailModalOpen(true);
+                                }}
+                                className="text-xs font-mono font-black px-2 py-0.5 rounded-md bg-blue-100 text-blue-900 border border-blue-200 hover:bg-blue-200 transition cursor-pointer flex items-center gap-1"
+                                title="Ver solicitud vinculada"
+                              >
+                                <FileText className="h-3 w-3 text-blue-700" />
+                                <span>{ent.codigo_solicitud || `SOL-${ent.id_solicitud}`}</span>
+                              </button>
+                            ) : (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 border border-slate-200">
+                                Entrega Inmediata
+                              </span>
+                            )}
+                            <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-200">
+                              ✓ {totalItems} ítems entregados
+                            </span>
+                            {ent.fecha_entrega && (
+                              <span className="text-[11px] font-mono text-slate-500">
+                                📅 {ent.fecha_entrega}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <strong className="text-sm font-extrabold text-slate-900 flex items-center gap-1.5">
+                              <User className="h-3.5 w-3.5 text-slate-500" />
+                              {ent.nombre_receptor || ent.titular_nombre || ent.nombre_completo || 'Receptor'}
+                            </strong>
+                            {(ent.documento_receptor || ent.documento || ent.titular_documento) && (
+                              <span className="px-2 py-0.5 rounded-md text-[11px] font-mono font-bold bg-amber-50 text-amber-900 border border-amber-200">
+                                C.C. {ent.documento_receptor || ent.documento || ent.titular_documento}
+                              </span>
+                            )}
+                            {ent.parentesco_con_jefe && (
+                              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-slate-100 text-slate-700 border border-slate-200">
+                                {ent.parentesco_con_jefe}
+                              </span>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                            {(ent.nombre_sector || solRelacionada?.nombre_sector) && (
+                              <span className="flex items-center gap-1 font-bold text-slate-700 bg-slate-100 px-2 py-0.5 rounded-lg border border-slate-200">
+                                <MapPin className="h-3 w-3 text-rose-500 shrink-0" />
+                                {ent.nombre_sector || solRelacionada?.nombre_sector}
+                              </span>
+                            )}
+                            {(ent.direccion_receptor || solRelacionada?.direccion_afectacion || solRelacionada?.direccion) && (
+                              <span className="truncate max-w-[320px] text-[11px]">
+                                {ent.direccion_receptor || solRelacionada?.direccion_afectacion || solRelacionada?.direccion}
+                              </span>
+                            )}
+                            {ent.nombre_entidad_donante && (
+                              <span className="text-[11px] font-semibold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
+                                Origen: {ent.nombre_entidad_donante}
+                              </span>
+                            )}
+                          </div>
+
+                          {/* Resumen de Insumos Entregados */}
+                          <div className="p-2.5 bg-slate-50 rounded-xl border border-slate-200 text-xs text-slate-700 flex items-start gap-2 mt-1">
+                            <Package className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                            <span className="font-medium">
+                              <strong className="font-bold text-slate-900">Insumos entregados:</strong> {resumenTexto}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Botones de Acción */}
+                        <div className="shrink-0 flex flex-wrap items-center gap-2 w-full lg:w-auto justify-end pt-2 lg:pt-0 border-t lg:border-t-0 border-slate-100">
+                          {ent.id_solicitud && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailModalInitialTab('censo');
+                                setDetailedRequestId(ent.id_solicitud);
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="px-3 py-2 rounded-xl bg-blue-700 hover:bg-blue-800 text-white text-xs font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                              title="Ver expediente completo de la solicitud vinculada"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-amber-300" />
+                              <span>Ver Solicitud</span>
+                            </button>
+                          )}
+
                           <button
                             type="button"
-                            onClick={() => handleEditarSolicitud(item.id_solicitud)}
-                            className="px-3 py-1 bg-amber-500 hover:bg-amber-600 text-slate-950 rounded-xl text-xs font-bold flex items-center gap-1 transition cursor-pointer"
+                            onClick={() => handleEditarEntrega(ent)}
+                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Editar entrega y actualizar insumos"
                           >
-                            <Pencil className="h-3 w-3" />
-                            <span>Editar</span>
+                            <Pencil className="h-3.5 w-3.5" />
+                            <span>Gestionar Entrega</span>
                           </button>
-                        )}
-                        <CheckCircle className="h-5 w-5 text-emerald-600 shrink-0" />
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Historial de la Sesión Actual */}
+              {historialRegistros.length > 0 && (
+                <div className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-200 space-y-3 mt-6">
+                  <div className="flex items-center gap-2 border-b border-slate-100 pb-2.5">
+                    <ListCheck className="h-4 w-4 text-blue-700" />
+                    <h3 className="font-bold text-xs sm:text-sm text-slate-800">
+                      Actividad Reciente en esta Sesión ({historialRegistros.length})
+                    </h3>
+                  </div>
+                  <div className="space-y-2">
+                    {historialRegistros.map((item, idx) => (
+                      <div
+                        key={idx}
+                        className="p-2.5 rounded-xl border border-slate-200 bg-slate-50/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 text-xs"
+                      >
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] font-black bg-blue-100 text-blue-900 px-2 py-0.5 rounded">
+                            {item.codigo_solicitud || item.codigo_entrega || `REG-#${idx + 1}`}
+                          </span>
+                          <span className="font-semibold text-slate-800">{item.mensaje}</span>
+                        </div>
+                        <CheckCircle className="h-4 w-4 text-emerald-600 shrink-0" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
               )}
             </div>

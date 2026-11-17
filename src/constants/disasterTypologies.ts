@@ -83,6 +83,7 @@ export const DISASTER_TYPOLOGIES: TipologiaCatastrofe[] = [
     nombre: "Alojamiento Temporal y Abrigo",
     icono: "tent",
     subtipos: [
+      { code: "ALOJ_SUBSIDIO_ARRIENDO", nombre: "Subsidio de Arrendamiento Temporal" },
       { code: "ALOJ_PERNOCTACION", nombre: "Kit de Pernoctación (Colchonetas Impermeables / Cobijas Térmicas)" },
       { code: "ALOJ_REFUGIO", nombre: "Refugio de Emergencia (Carpas / Plásticos Calibre 8)" },
       { code: "ALOJ_MENAJE", nombre: "Menaje de Cocina (Estufas Portátiles / Ollas / Vajilla)" },

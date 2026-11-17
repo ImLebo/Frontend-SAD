@@ -338,11 +338,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('censo')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'censo'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'censo'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <Home className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'censo' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Evaluación</span>
@@ -351,11 +350,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('rufe')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'rufe'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'rufe'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <Shield className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'rufe' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">RUFE UNGRD</span>
@@ -364,11 +362,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('familia')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'familia'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'familia'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <Users className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'familia' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Núcleo Familiar</span>
@@ -377,11 +374,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('insumos')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'insumos'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'insumos'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <ListCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'insumos' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Insumos ({detail?.items_solicitados?.length || 0})</span>
@@ -390,11 +386,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('visitas')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'visitas'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'visitas'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <ClipboardCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'visitas' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Visitas Técnicas ({detail?.visitas_tecnicas?.length || 0})</span>
@@ -403,11 +398,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('obra')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'obra'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'obra'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <Building2 className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'obra' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Obra y Reconstrucción</span>
@@ -416,11 +410,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('entregas')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'entregas'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'entregas'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <PackageCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'entregas' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Entregas ({detail?.entregas?.length || 0})</span>
@@ -429,11 +422,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
               <button
                 type="button"
                 onClick={() => setActiveTab('fotos')}
-                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${
-                  activeTab === 'fotos'
+                className={`py-2 px-1.5 sm:px-2 text-[11px] sm:text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1 sm:gap-1.5 cursor-pointer text-center ${activeTab === 'fotos'
                     ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
                     : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                }`}
+                  }`}
               >
                 <Camera className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'fotos' ? 'text-blue-600' : 'text-slate-400'}`} />
                 <span className="truncate">Fotos ({detail?.fotos?.length || 0})</span>
@@ -529,11 +521,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             <span>Ubicación y Georreferenciación</span>
                           </div>
                           <span
-                            className={`font-black text-[10px] px-2.5 py-0.5 rounded-full border ${
-                              detail.sector.tipo_sector === 'Rural'
+                            className={`font-black text-[10px] px-2.5 py-0.5 rounded-full border ${detail.sector.tipo_sector === 'Rural'
                                 ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                 : 'bg-sky-50 text-sky-800 border-sky-300'
-                            }`}
+                              }`}
                           >
                             {detail.sector.tipo_sector === 'Rural' ? '🌳 Zona Rural' : '🏢 Zona Urbana'}
                           </span>
@@ -611,23 +602,22 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                         <div className="flex items-center gap-2">
                           <span className="text-xs text-slate-500 font-bold">Nivel Consolidado:</span>
                           <span
-                            className={`text-xs font-black px-3 py-1 rounded-xl shadow-2xs ${
-                              nivelConsolidado === 'Colapso Total'
+                            className={`text-xs font-black px-3 py-1 rounded-xl shadow-2xs ${nivelConsolidado === 'Colapso Total'
                                 ? 'bg-rose-600 text-white shadow-rose-200'
                                 : nivelConsolidado === 'Grave'
-                                ? 'bg-amber-500 text-slate-950 font-black'
-                                : nivelConsolidado === 'Leve'
-                                ? 'bg-slate-700 text-white'
-                                : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                            }`}
+                                  ? 'bg-amber-500 text-slate-950 font-black'
+                                  : nivelConsolidado === 'Leve'
+                                    ? 'bg-slate-700 text-white'
+                                    : 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                              }`}
                           >
                             {nivelConsolidado === 'Colapso Total'
                               ? '🔴 Colapso Total'
                               : nivelConsolidado === 'Grave'
-                              ? '🟡 Daño Grave'
-                              : nivelConsolidado === 'Leve'
-                              ? '⚪ Daño Leve'
-                              : '🟢 Ninguno / Sin Daño Reportado'}
+                                ? '🟡 Daño Grave'
+                                : nivelConsolidado === 'Leve'
+                                  ? '⚪ Daño Leve'
+                                  : '🟢 Ninguno / Sin Daño Reportado'}
                           </span>
                         </div>
                       </div>
@@ -639,15 +629,14 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             Daño Vivienda
                           </span>
                           <span
-                            className={`text-xs font-black block ${
-                              nivelConsolidado === 'Colapso Total'
+                            className={`text-xs font-black block ${nivelConsolidado === 'Colapso Total'
                                 ? 'text-rose-700'
                                 : nivelConsolidado === 'Grave'
-                                ? 'text-amber-700'
-                                : nivelConsolidado === 'Leve'
-                                ? 'text-slate-800'
-                                : 'text-slate-600'
-                            }`}
+                                  ? 'text-amber-700'
+                                  : nivelConsolidado === 'Leve'
+                                    ? 'text-slate-800'
+                                    : 'text-slate-600'
+                              }`}
                           >
                             {nivelConsolidado}
                           </span>
@@ -658,15 +647,14 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             Daño Techo
                           </span>
                           <span
-                            className={`text-xs font-black block ${
-                              nivelTecho === 'Colapso Total'
+                            className={`text-xs font-black block ${nivelTecho === 'Colapso Total'
                                 ? 'text-rose-700'
                                 : nivelTecho === 'Grave'
-                                ? 'text-amber-700'
-                                : nivelTecho === 'Leve'
-                                ? 'text-slate-800'
-                                : 'text-slate-600'
-                            }`}
+                                  ? 'text-amber-700'
+                                  : nivelTecho === 'Leve'
+                                    ? 'text-slate-800'
+                                    : 'text-slate-600'
+                              }`}
                           >
                             {nivelTecho}
                           </span>
@@ -677,9 +665,8 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             Evacuación
                           </span>
                           <span
-                            className={`text-xs font-black block ${
-                              detail.evaluacion_dano?.requiere_evacuacion ? 'text-rose-700' : 'text-slate-700'
-                            }`}
+                            className={`text-xs font-black block ${detail.evaluacion_dano?.requiere_evacuacion ? 'text-rose-700' : 'text-slate-700'
+                              }`}
                           >
                             {detail.evaluacion_dano?.requiere_evacuacion ? '🚨 SÍ (Requerida)' : '🛡️ NO'}
                           </span>
@@ -690,9 +677,8 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             Albergue
                           </span>
                           <span
-                            className={`text-xs font-black block ${
-                              detail.evaluacion_dano?.requiere_albergue ? 'text-amber-700' : 'text-slate-700'
-                            }`}
+                            className={`text-xs font-black block ${detail.evaluacion_dano?.requiere_albergue ? 'text-amber-700' : 'text-slate-700'
+                              }`}
                           >
                             {detail.evaluacion_dano?.requiere_albergue ? '⛺ SÍ (Requerido)' : '🛡️ NO'}
                           </span>
@@ -703,32 +689,29 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                       <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-100 text-xs">
                         <span className="text-slate-500 font-bold">Verificaciones en Terreno:</span>
                         <span
-                          className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${
-                            detail.evaluacion_dano?.visita_campo_realizada
+                          className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${detail.evaluacion_dano?.visita_campo_realizada
                               ? 'bg-emerald-50 text-emerald-800 border-emerald-200'
                               : 'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}
+                            }`}
                         >
                           {detail.evaluacion_dano?.visita_campo_realizada ? '✓ Visita de Campo Realizada' : '⏳ Visita Pendiente'}
                         </span>
 
                         <span
-                          className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${
-                            detail.evaluacion_dano?.censo_oficial_realizado
+                          className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${detail.evaluacion_dano?.censo_oficial_realizado
                               ? 'bg-blue-50 text-blue-800 border-blue-200'
                               : 'bg-slate-100 text-slate-600 border-slate-200'
-                          }`}
+                            }`}
                         >
                           {detail.evaluacion_dano?.censo_oficial_realizado ? '✓ Censo Oficial Formalizado' : '⏳ En Registro'}
                         </span>
 
                         {detail.evaluacion_dano?.cuenta_red_apoyo !== undefined && (
                           <span
-                            className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${
-                              detail.evaluacion_dano.cuenta_red_apoyo
+                            className={`px-2.5 py-0.5 rounded-lg font-bold text-[11px] border ${detail.evaluacion_dano.cuenta_red_apoyo
                                 ? 'bg-indigo-50 text-indigo-800 border-indigo-200'
                                 : 'bg-slate-100 text-slate-600 border-slate-200'
-                            }`}
+                              }`}
                           >
                             {detail.evaluacion_dano.cuenta_red_apoyo ? '👨‍👩‍👦 Con Red de Apoyo Familiar' : 'Sin Red de Apoyo'}
                           </span>
@@ -770,35 +753,34 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               {detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
                                 ? 'Propietario Residente'
                                 : detail.tipo_tenencia === 'ARRENDATARIO'
-                                ? 'Arrendatario / Inquilino'
-                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
-                                ? 'Propietario No Residente'
-                                : detail.condicion_vivienda || 'No especificada'}
+                                  ? 'Arrendatario / Inquilino'
+                                  : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                                    ? 'Propietario No Residente'
+                                    : detail.condicion_vivienda || 'No especificada'}
                             </span>
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
-                              detail.tipo_tenencia === 'ARRENDATARIO'
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${detail.tipo_tenencia === 'ARRENDATARIO'
                                 ? 'bg-amber-100 text-amber-800 border border-amber-300'
                                 : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
-                                ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
-                                : 'bg-slate-200 text-slate-700'
-                            }`}>
+                                  ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
+                                  : 'bg-slate-200 text-slate-700'
+                              }`}>
                               {detail.tipo_tenencia === 'ARRENDATARIO'
                                 ? 'Subsidio Arriendo + Kits'
                                 : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
-                                ? 'Kits + Subsidios + Reconstrucción'
-                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
-                                ? 'Solo Reconstrucción Estructural'
-                                : 'Titular'}
+                                  ? 'Kits + Subsidios + Reconstrucción'
+                                  : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                                    ? 'Solo Reconstrucción Estructural'
+                                    : 'Titular'}
                             </span>
                           </div>
                           <p className="text-[11px] text-slate-600 mt-1">
                             {detail.tipo_tenencia === 'ARRENDATARIO'
                               ? 'El arrendatario es el titular receptor del auxilio de arrendamiento temporal y ayudas de asistencia humanitaria inmediata.'
                               : detail.tipo_tenencia === 'PROPIETARIO_RESIDENTE'
-                              ? 'Habita el predio afectado; tiene derecho integral a kits, subsidios de evacuación y programas de reconstrucción.'
-                              : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
-                              ? 'No habita el inmueble. Su derecho se orienta a la reclamación de afectación de bienes inmuebles para obras públicas/reparación, no a kits de subsistencia alimentaria.'
-                              : 'Condición declarada en el censo unificado.'}
+                                ? 'Habita el predio afectado; tiene derecho integral a kits, subsidios de evacuación y programas de reconstrucción.'
+                                : detail.tipo_tenencia === 'PROPIETARIO_NO_RESIDENTE'
+                                  ? 'No habita el inmueble. Su derecho se orienta a la reclamación de afectación de bienes inmuebles para obras públicas/reparación, no a kits de subsistencia alimentaria.'
+                                  : 'Condición declarada en el censo unificado.'}
                           </p>
                         </div>
 
@@ -903,13 +885,12 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                             <div key={idx} className="p-3 bg-emerald-50/40 rounded-xl border border-emerald-200 text-xs space-y-1">
                               <div className="flex items-center justify-between">
                                 <span className="font-bold text-emerald-950">{infra.tipo_infraestructura}</span>
-                                <span className={`text-[10px] font-black px-2 py-0.5 rounded ${
-                                  infra.estado_dano === 'Colapso Total'
+                                <span className={`text-[10px] font-black px-2 py-0.5 rounded ${infra.estado_dano === 'Colapso Total'
                                     ? 'bg-rose-100 text-rose-800'
                                     : infra.estado_dano === 'Grave'
-                                    ? 'bg-amber-100 text-amber-800'
-                                    : 'bg-emerald-100 text-emerald-800'
-                                }`}>
+                                      ? 'bg-amber-100 text-amber-800'
+                                      : 'bg-emerald-100 text-emerald-800'
+                                  }`}>
                                   {infra.estado_dano}
                                 </span>
                               </div>
@@ -1003,11 +984,10 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                                                   setSavingMateriales(false);
                                                 }
                                               }}
-                                              className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 ${
-                                                mat.aprobado
+                                              className={`px-2.5 py-1 rounded-lg border text-[11px] font-bold transition cursor-pointer inline-flex items-center gap-1 ${mat.aprobado
                                                   ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
                                                   : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                                              }`}
+                                                }`}
                                               title="Clic para aprobar o desaprobar este material"
                                             >
                                               {mat.aprobado ? (
@@ -1112,13 +1092,12 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                         <div className="p-3.5 bg-slate-50 rounded-xl border border-slate-200">
                           <span className="text-[10px] font-bold text-slate-500 uppercase block mb-1">Estado del Bien</span>
                           <span
-                            className={`text-xs font-black block ${
-                              detail.formulario_rufe?.estado_bien === 'DESTRUIDO'
+                            className={`text-xs font-black block ${detail.formulario_rufe?.estado_bien === 'DESTRUIDO'
                                 ? 'text-rose-700'
                                 : detail.formulario_rufe?.estado_bien === 'NO HABITABLE'
-                                ? 'text-amber-700'
-                                : 'text-emerald-700'
-                            }`}
+                                  ? 'text-amber-700'
+                                  : 'text-emerald-700'
+                              }`}
                           >
                             {detail.formulario_rufe?.estado_bien || 'Habitable'}
                           </span>
@@ -1177,17 +1156,16 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                                   </div>
                                 </td>
                                 <td className="py-2.5 px-3">
-                                  <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-black ${
-                                    fam.parentesco.toLowerCase().includes('jefe')
+                                  <span className={`inline-block px-2 py-0.5 rounded-md text-[11px] font-black ${fam.parentesco.toLowerCase().includes('jefe')
                                       ? 'bg-indigo-100 text-indigo-800'
                                       : fam.parentesco.toLowerCase().includes('presidente') || fam.parentesco.toLowerCase().includes('jac')
-                                      ? 'bg-purple-100 text-purple-800'
-                                      : fam.parentesco.toLowerCase().includes('cónyuge') || fam.parentesco.toLowerCase().includes('pareja')
-                                      ? 'bg-blue-100 text-blue-800'
-                                      : fam.parentesco.toLowerCase().includes('hijo')
-                                      ? 'bg-emerald-100 text-emerald-800'
-                                      : 'bg-amber-100 text-amber-800'
-                                  }`}>
+                                        ? 'bg-purple-100 text-purple-800'
+                                        : fam.parentesco.toLowerCase().includes('cónyuge') || fam.parentesco.toLowerCase().includes('pareja')
+                                          ? 'bg-blue-100 text-blue-800'
+                                          : fam.parentesco.toLowerCase().includes('hijo')
+                                            ? 'bg-emerald-100 text-emerald-800'
+                                            : 'bg-amber-100 text-amber-800'
+                                    }`}>
                                     {fam.parentesco}
                                   </span>
                                 </td>
@@ -1417,13 +1395,12 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               <span className="font-bold text-xs bg-blue-50 text-blue-800 border border-blue-200 px-2.5 py-0.5 rounded-lg">
                                 Visita Técnica #{vis.numero_visita}
                               </span>
-                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
-                                vis.dictamen_tecnico === 'COLAPSO_INMINENTE' || vis.dictamen_tecnico === 'SEVERO' || vis.dictamen_tecnico === 'DESHABITABLE'
+                              <span className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${vis.dictamen_tecnico === 'COLAPSO_INMINENTE' || vis.dictamen_tecnico === 'SEVERO' || vis.dictamen_tecnico === 'DESHABITABLE'
                                   ? 'bg-rose-100 text-rose-800 border border-rose-200'
                                   : vis.dictamen_tecnico === 'MODERADO'
-                                  ? 'bg-amber-100 text-amber-800 border border-amber-200'
-                                  : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
-                              }`}>
+                                    ? 'bg-amber-100 text-amber-800 border border-amber-200'
+                                    : 'bg-emerald-100 text-emerald-800 border border-emerald-200'
+                                }`}>
                                 Dictamen: {vis.dictamen_tecnico}
                               </span>
                             </div>
@@ -1701,20 +1678,19 @@ export const SolicitudDetailModal: React.FC<Props> = ({
                               </div>
                             </div>
                             <div className="p-3 flex items-center justify-between text-xs">
-                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${
-                                foto.tipo === 'Techo_Cubierta'
+                              <span className={`px-2 py-0.5 rounded-md text-[10px] font-extrabold ${foto.tipo === 'Techo_Cubierta'
                                   ? 'bg-amber-100 text-amber-900 border border-amber-300'
                                   : foto.tipo === 'Estructura_Muros'
-                                  ? 'bg-rose-100 text-rose-900 border border-rose-300'
-                                  : 'bg-blue-100 text-blue-900 border border-blue-200'
-                              }`}>
+                                    ? 'bg-rose-100 text-rose-900 border border-rose-300'
+                                    : 'bg-blue-100 text-blue-900 border border-blue-200'
+                                }`}>
                                 {foto.tipo === 'Techo_Cubierta'
                                   ? '🏠 Techo / Cubierta'
                                   : foto.tipo === 'Estructura_Muros'
-                                  ? '🏛️ Estructura / Muros'
-                                  : foto.tipo === 'Censo_General'
-                                  ? '📋 Censo General'
-                                  : (foto.tipo || 'Evidencia')}
+                                    ? '🏛️ Estructura / Muros'
+                                    : foto.tipo === 'Censo_General'
+                                      ? '📋 Censo General'
+                                      : (foto.tipo || 'Evidencia')}
                               </span>
                               <span className="text-slate-500 text-[10px] font-mono">{formatFechaCorta(foto.fecha)}</span>
                             </div>

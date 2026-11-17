@@ -238,6 +238,13 @@ export const sacService = {
   },
 
   // Modo 2 y 3: Entregas
+  getTodasEntregas: async (evento_id?: number): Promise<any[]> => {
+    const res = await apiClient.get('/entregas/todas', {
+      params: { evento_id },
+    });
+    return res.data;
+  },
+
   getSolicitudesPendientes: async (evento_id?: number): Promise<any[]> => {
     const res = await apiClient.get('/entregas/pendientes', {
       params: { evento_id },
