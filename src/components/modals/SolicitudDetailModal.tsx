@@ -223,7 +223,7 @@ export const SolicitudDetailModal: React.FC<Props> = ({
       <div className="fixed inset-0 z-[9999] bg-slate-950/70 backdrop-blur-xs flex items-center justify-center p-3 sm:p-5 overflow-y-auto animate-in fade-in duration-200">
         <div className="bg-white rounded-3xl max-w-5xl w-full shadow-2xl border border-slate-200 flex flex-col max-h-[92vh] overflow-hidden my-auto">
           {/* Header Institucional */}
-          <div className="flex flex-wrap items-start justify-between gap-3 px-5 sm:px-7 py-4.5 border-b border-slate-200 bg-white">
+          <div className="shrink-0 flex flex-wrap items-start justify-between gap-3 px-5 sm:px-7 py-4 border-b border-slate-200 bg-white">
             <div className="space-y-1.5">
               <div className="flex items-center gap-2.5 flex-wrap">
                 <span className="font-mono text-xs font-black bg-slate-950 text-white px-3 py-1 rounded-xl shadow-xs">
@@ -333,101 +333,112 @@ export const SolicitudDetailModal: React.FC<Props> = ({
           </div>
 
           {/* Navegación por Pestañas Institucionales */}
-          <div className="border-b border-slate-200 bg-slate-50/90 px-3 sm:px-6 pt-2 select-none overflow-x-auto scrollbar-thin">
-            <div className="flex items-center gap-1 sm:gap-1.5 min-w-max pb-1">
+          <div
+            className="shrink-0 border-b border-slate-200 bg-slate-100/90 px-3 sm:px-6 py-2 select-none overflow-x-auto"
+            style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+          >
+            <div className="flex items-center gap-1.5 sm:gap-2 min-w-max">
               <button
                 type="button"
                 onClick={() => setActiveTab('censo')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'censo'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'censo'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <Home className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'censo' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Home className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'censo' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Evaluación</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('rufe')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'rufe'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'rufe'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <Shield className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'rufe' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Shield className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'rufe' ? 'text-white' : 'text-slate-500'}`} />
                 <span>RUFE UNGRD</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('familia')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'familia'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'familia'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <Users className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'familia' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Users className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'familia' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Núcleo Familiar</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('insumos')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'insumos'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'insumos'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <ListCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'insumos' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <ListCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'insumos' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Insumos ({detail?.items_solicitados?.length || 0})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('visitas')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'visitas'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'visitas'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <ClipboardCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'visitas' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <ClipboardCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'visitas' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Visitas Técnicas ({detail?.visitas_tecnicas?.length || 0})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('obra')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'obra'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'obra'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <Building2 className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'obra' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Building2 className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'obra' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Obra y Reconstrucción</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('entregas')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'entregas'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'entregas'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <PackageCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'entregas' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <PackageCheck className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'entregas' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Entregas ({detail?.entregas?.length || 0})</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setActiveTab('fotos')}
-                className={`py-2 px-3 text-xs font-extrabold rounded-t-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 ${activeTab === 'fotos'
-                    ? 'bg-white border-t-2 border-x border-t-blue-600 border-x-slate-200 text-blue-900 shadow-2xs font-black -mb-[1px]'
-                    : 'text-slate-600 hover:text-slate-900 hover:bg-white/60'
-                  }`}
+                className={`px-3.5 py-2 text-xs font-bold rounded-xl transition-all flex items-center justify-center gap-1.5 cursor-pointer text-center shrink-0 whitespace-nowrap ${
+                  activeTab === 'fotos'
+                    ? 'bg-blue-600 text-white shadow-xs font-extrabold'
+                    : 'bg-white text-slate-700 hover:bg-slate-200/80 hover:text-slate-900 border border-slate-200'
+                }`}
               >
-                <Camera className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'fotos' ? 'text-blue-600' : 'text-slate-400'}`} />
+                <Camera className={`h-3.5 w-3.5 shrink-0 ${activeTab === 'fotos' ? 'text-white' : 'text-slate-500'}`} />
                 <span>Fotos ({detail?.fotos?.length || 0})</span>
               </button>
             </div>
