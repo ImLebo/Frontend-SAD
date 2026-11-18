@@ -1332,15 +1332,6 @@ export const CatastrofesView: React.FC = () => {
         'Colapso Total': esVivienda ? 'No habitable' : 'Inoperativo / cierre',
       };
 
-  // Selección tipo radio (única opción por componente) con posibilidad de deseleccionar
-  const selectRadioSubtipo = (item: string, panelItems: string[]) => {
-    if (selectedSubtipos.includes(item)) {
-      setSelectedSubtipos((prev) => prev.filter((x) => x !== item));
-    } else {
-      setSelectedSubtipos((prev) => [...prev.filter((x) => !panelItems.includes(x)), item]);
-    }
-  };
-
   // Validación de campos mínimos obligatorios antes de avanzar de paso en el formulario
   const validarPasoActual = (targetStep: number): boolean => {
     if (registroModo === 'ENTREGA_EXISTENTE') return true;
@@ -1465,6 +1456,10 @@ export const CatastrofesView: React.FC = () => {
     'Colapso total de muros/paredes': ['Colapso parcial de muros/paredes', 'Sin daño visible'],
     'Colapso parcial de techo/cubierta': ['Colapso total de techo/cubierta', 'Sin daño visible'],
     'Colapso total de techo/cubierta': ['Colapso parcial de techo/cubierta', 'Sin daño visible'],
+    'Colapso parcial de techo en casa de la finca': ['Colapso total de techo en casa de la finca', 'Sin daño visible'],
+    'Colapso total de techo en casa de la finca': ['Colapso parcial de techo en casa de la finca', 'Sin daño visible'],
+    'Colapso parcial de muros en casa de la finca': ['Colapso total de muros en casa de la finca', 'Sin daño visible'],
+    'Colapso total de muros en casa de la finca': ['Colapso parcial de muros en casa de la finca', 'Sin daño visible'],
     'Colapso Parcial en zona de servicios': ['Colapso total en zona de servicios', 'Sin daño visible'],
     'Colapso total en zona de servicios': ['Colapso Parcial en zona de servicios', 'Sin daño visible'],
     'Sin daño visible': [
@@ -7995,13 +7990,13 @@ export const CatastrofesView: React.FC = () => {
                               <div className="p-4 space-y-3 bg-white border-t border-amber-200/60">
                                 {esFinca ? (
                                   <div className="space-y-3">
-                                    {/* Callout informativo según imagen */}
+                                    {/* Callout informativo */}
                                     <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs font-medium">
                                       <Info className="h-4 w-4 text-blue-600 shrink-0" />
-                                      <span>Seleccione la afectación del techo de la casa principal según su gravedad. Luego marque las demás afectaciones que apliquen en la finca.</span>
+                                      <span>Marque en la lista de chequeo las afectaciones del techo según apliquen en la casa principal y demás estructuras de la finca.</span>
                                     </div>
 
-                                    {/* Bloque 1: Techo de la casa principal (Radio buttons) */}
+                                    {/* Bloque 1: Techo de la casa principal (Checklist) */}
                                     <div className="rounded-2xl border border-blue-200 bg-blue-50/20 overflow-hidden flex flex-col md:flex-row">
                                       <div className="md:w-44 p-3.5 bg-blue-50/70 border-b md:border-b-0 md:border-r border-blue-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
                                         <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shadow-2xs">
@@ -8013,7 +8008,7 @@ export const CatastrofesView: React.FC = () => {
                                       </div>
                                       <div className="flex-1 p-3.5 space-y-2">
                                         <h5 className="text-xs font-extrabold text-slate-800">
-                                          Afectación en el techo de la casa principal <span className="text-[11px] font-normal text-slate-500">(seleccione una opción)</span>
+                                          Afectación en el techo de la casa principal <span className="text-[11px] font-normal text-slate-500">(puede seleccionar una o varias)</span>
                                         </h5>
                                         <div className="space-y-1.5">
                                           {DANOS_FINCA_TECHO_CASA.map((item) => {
@@ -8028,17 +8023,10 @@ export const CatastrofesView: React.FC = () => {
                                                 }`}
                                               >
                                                 <input
-                                                  type="radio"
-                                                  name="radio-danos-techo-finca-casa"
+                                                  type="checkbox"
                                                   checked={isSelected}
-                                                  onChange={() => selectRadioSubtipo(item, DANOS_FINCA_TECHO_CASA)}
-                                                  onClick={(e) => {
-                                                    if (isSelected) {
-                                                      e.preventDefault();
-                                                      selectRadioSubtipo(item, DANOS_FINCA_TECHO_CASA);
-                                                    }
-                                                  }}
-                                                  className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                                  onChange={() => toggleSubtipo(item)}
+                                                  className="h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
                                                 />
                                                 <span className="text-xs leading-snug">{item}</span>
                                               </label>
@@ -8103,17 +8091,10 @@ export const CatastrofesView: React.FC = () => {
                                             }`}
                                           >
                                             <input
-                                              type="radio"
-                                              name="radio-danos-techo"
+                                              type="checkbox"
                                               checked={isSelected}
-                                              onChange={() => selectRadioSubtipo(item, danosPanel1)}
-                                              onClick={(e) => {
-                                                if (isSelected) {
-                                                  e.preventDefault();
-                                                  selectRadioSubtipo(item, danosPanel1);
-                                                }
-                                              }}
-                                              className="h-4 w-4 text-amber-600 border-slate-300 focus:ring-amber-500"
+                                              onChange={() => toggleSubtipo(item)}
+                                              className="h-4 w-4 rounded border-slate-300 text-amber-600 focus:ring-amber-500"
                                             />
                                             <span className="leading-snug">{item}</span>
                                           </label>
@@ -8249,13 +8230,13 @@ export const CatastrofesView: React.FC = () => {
                               <div className="p-4 space-y-3 bg-white border-t border-rose-200/60">
                                 {esFinca ? (
                                   <div className="space-y-3">
-                                    {/* Callout informativo según diseño */}
+                                    {/* Callout informativo */}
                                     <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs font-medium">
                                       <Info className="h-4 w-4 text-blue-600 shrink-0" />
-                                      <span>Seleccione la afectación estructural de la casa principal según su gravedad. Luego marque las demás instalaciones productivas de la finca que presenten daños.</span>
+                                      <span>Marque en la lista de chequeo las afectaciones estructurales según apliquen en los muros de la casa principal y demás instalaciones de la finca.</span>
                                     </div>
 
-                                    {/* Bloque 1: Muros de la casa principal (Radio buttons) */}
+                                    {/* Bloque 1: Muros de la casa principal (Checklist) */}
                                     <div className="rounded-2xl border border-rose-200 bg-rose-50/20 overflow-hidden flex flex-col md:flex-row">
                                       <div className="md:w-44 p-3.5 bg-rose-50/70 border-b md:border-b-0 md:border-r border-rose-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
                                         <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shadow-2xs">
@@ -8267,7 +8248,7 @@ export const CatastrofesView: React.FC = () => {
                                       </div>
                                       <div className="flex-1 p-3.5 space-y-2">
                                         <h5 className="text-xs font-extrabold text-slate-800">
-                                          Afectación en muros de la casa principal <span className="text-[11px] font-normal text-slate-500">(seleccione una opción)</span>
+                                          Afectación en muros de la casa principal <span className="text-[11px] font-normal text-slate-500">(puede seleccionar una o varias)</span>
                                         </h5>
                                         <div className="space-y-1.5">
                                           {DANOS_FINCA_MUROS_CASA.map((item) => {
@@ -8282,17 +8263,10 @@ export const CatastrofesView: React.FC = () => {
                                                 }`}
                                               >
                                                 <input
-                                                  type="radio"
-                                                  name="radio-danos-muros-finca-casa"
+                                                  type="checkbox"
                                                   checked={isSelected}
-                                                  onChange={() => selectRadioSubtipo(item, DANOS_FINCA_MUROS_CASA)}
-                                                  onClick={(e) => {
-                                                    if (isSelected) {
-                                                      e.preventDefault();
-                                                      selectRadioSubtipo(item, DANOS_FINCA_MUROS_CASA);
-                                                    }
-                                                  }}
-                                                  className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
+                                                  onChange={() => toggleSubtipo(item)}
+                                                  className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                                                 />
                                                 <span className="text-xs leading-snug">{item}</span>
                                               </label>
@@ -8357,17 +8331,10 @@ export const CatastrofesView: React.FC = () => {
                                             }`}
                                           >
                                             <input
-                                              type="radio"
-                                              name="radio-danos-estructura"
+                                              type="checkbox"
                                               checked={isSelected}
-                                              onChange={() => selectRadioSubtipo(item, danosPanel2)}
-                                              onClick={(e) => {
-                                                if (isSelected) {
-                                                  e.preventDefault();
-                                                  selectRadioSubtipo(item, danosPanel2);
-                                                }
-                                              }}
-                                              className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
+                                              onChange={() => toggleSubtipo(item)}
+                                              className="h-4 w-4 rounded border-slate-300 text-rose-600 focus:ring-rose-500"
                                             />
                                             <span className="leading-snug">{item}</span>
                                           </label>
