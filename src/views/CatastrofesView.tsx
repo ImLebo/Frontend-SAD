@@ -578,6 +578,7 @@ export const CatastrofesView: React.FC = () => {
 
   const [mapCurrentPage, setMapCurrentPage] = useState(1);
   const [isMapFullScreen, setIsMapFullScreen] = useState(false);
+  const [entregaSubTabModo, setEntregaSubTabModo] = useState<'NUEVA_ENTREGA' | 'HISTORIAL_ENTREGAS'>('NUEVA_ENTREGA');
 
   // Map Display Mode: 'sectores' (Conteo por Sector - default/principal) | 'individual' (Puntos) | 'ambos'
   const [mapDisplayMode, setMapDisplayMode] = useState<'sectores' | 'individual' | 'ambos'>('sectores');
@@ -743,6 +744,12 @@ export const CatastrofesView: React.FC = () => {
       const items = String(ent.items_resumen || '').toLowerCase();
       const sec = String(ent.nombre_sector || '').toLowerCase();
       const don = String(ent.nombre_entidad_donante || '').toLowerCase();
+      const docsNuc = Array.isArray(ent.documentos_nucleo)
+        ? ent.documentos_nucleo.join(' ').toLowerCase()
+        : String(ent.documentos_nucleo || '').toLowerCase();
+      const nomsNuc = Array.isArray(ent.nombres_nucleo)
+        ? ent.nombres_nucleo.join(' ').toLowerCase()
+        : String(ent.nombres_nucleo || '').toLowerCase();
       return (
         codEnt.includes(q) ||
         codSol.includes(q) ||
@@ -752,7 +759,9 @@ export const CatastrofesView: React.FC = () => {
         nomRec.includes(q) ||
         items.includes(q) ||
         sec.includes(q) ||
-        don.includes(q)
+        don.includes(q) ||
+        docsNuc.includes(q) ||
+        nomsNuc.includes(q)
       );
     });
   }, [todasEntregas, deferredListarSearch, listarEventoFiltro, listarSectorFiltro]);
@@ -772,6 +781,12 @@ export const CatastrofesView: React.FC = () => {
       const items = String(ent.items_resumen || '').toLowerCase();
       const sec = String(ent.nombre_sector || '').toLowerCase();
       const don = String(ent.nombre_entidad_donante || '').toLowerCase();
+      const docsNuc = Array.isArray(ent.documentos_nucleo)
+        ? ent.documentos_nucleo.join(' ').toLowerCase()
+        : String(ent.documentos_nucleo || '').toLowerCase();
+      const nomsNuc = Array.isArray(ent.nombres_nucleo)
+        ? ent.nombres_nucleo.join(' ').toLowerCase()
+        : String(ent.nombres_nucleo || '').toLowerCase();
       return (
         codEnt.includes(q) ||
         codSol.includes(q) ||
@@ -781,10 +796,19 @@ export const CatastrofesView: React.FC = () => {
         nomRec.includes(q) ||
         items.includes(q) ||
         sec.includes(q) ||
-        don.includes(q)
+        don.includes(q) ||
+        docsNuc.includes(q) ||
+        nomsNuc.includes(q)
       );
     });
   }, [todasEntregas, deferredHistorialSearch, selectedEventoId, historialSectorFiltro]);
+
+  // Historial de entregas vinculadas a la solicitud seleccionada en el formulario
+  const entregasDeSolicitudSeleccionada = useMemo(() => {
+    const idSol = selectedRequest?.id_solicitud || selectedRequest?.id || editingSolicitudId;
+    if (!idSol) return [];
+    return todasEntregas.filter((e: any) => Number(e.id_solicitud) === Number(idSol));
+  }, [todasEntregas, selectedRequest, editingSolicitudId]);
 
   useEffect(() => {
     setListarCurrentPage(1);
@@ -1260,6 +1284,44 @@ export const CatastrofesView: React.FC = () => {
         'Colapso Total': esVivienda ? 'No habitable' : 'Inoperativo / cierre',
       };
 
+  // Selección tipo radio (única opción por componente) con posibilidad de deseleccionar
+  const selectRadioSubtipo = (item: string, panelItems: string[]) => {
+    if (selectedSubtipos.includes(item)) {
+      setSelectedSubtipos((prev) => prev.filter((x) => x !== item));
+    } else {
+      setSelectedSubtipos((prev) => [...prev.filter((x) => !panelItems.includes(x)), item]);
+    }
+  };
+
+  // Validación de campos mínimos obligatorios antes de avanzar de paso en el formulario
+  const validarPasoActual = (targetStep: number): boolean => {
+    if (registroModo === 'ENTREGA_EXISTENTE') return true;
+    if (targetStep <= formStepTab) return true;
+
+    if (formStepTab === 1) {
+      const faltantes: string[] = [];
+      if (!selectedEventoId) faltantes.push('Evento Activo');
+      if (!documento.trim()) faltantes.push('Cédula / Documento');
+      if (!nombres.trim()) faltantes.push('Nombres');
+      if (!apellidos.trim()) faltantes.push('Apellidos');
+      if (!sectorId) faltantes.push('Sector / Barrio / Vereda');
+
+      if (faltantes.length > 0) {
+        showToast(
+          `Debe completar los campos obligatorios antes de continuar: ${faltantes.join(', ')}`,
+          'warning'
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
+  const handleCambiarPaso = (targetStep: 1 | 2 | 3 | 4 | 5 | 6) => {
+    if (!validarPasoActual(targetStep)) return;
+    setFormStepTab(targetStep);
+  };
+
   // Preset Packages
   const PRESET_PACKAGES: Record<string, { label: string; items: string[] }> = {
     AFECTACION_VIVIENDA: {
@@ -1683,13 +1745,21 @@ export const CatastrofesView: React.FC = () => {
         if (!sol.id_sector || !selectedSectorIds.includes(sol.id_sector)) return false;
       }
 
-      // 6. Free Search Query
+      // 6. Free Search Query (incluye titulares y cualquier miembro del núcleo familiar)
       if (q) {
         const matchDoc = sol.documento?.toLowerCase().includes(q);
         const matchName = sol.nombre_completo?.toLowerCase().includes(q);
         const matchId = `sol-${sol.id_solicitud}`.toLowerCase().includes(q) || String(sol.id_solicitud).includes(q) || (sol.codigo_solicitud && sol.codigo_solicitud.toLowerCase().includes(q));
         const matchSector = sol.nombre_sector?.toLowerCase().includes(q);
-        if (!matchDoc && !matchName && !matchId && !matchSector) return false;
+        const docsNuc = Array.isArray(sol.documentos_nucleo)
+          ? sol.documentos_nucleo.join(' ').toLowerCase()
+          : String(sol.documentos_nucleo || '').toLowerCase();
+        const nomsNuc = Array.isArray(sol.nombres_nucleo)
+          ? sol.nombres_nucleo.join(' ').toLowerCase()
+          : String(sol.nombres_nucleo || '').toLowerCase();
+        if (!matchDoc && !matchName && !matchId && !matchSector && !docsNuc.includes(q) && !nomsNuc.includes(q)) {
+          return false;
+        }
       }
 
       // 7. Multi-Category / Subtipologies Filter
@@ -2254,12 +2324,63 @@ export const CatastrofesView: React.FC = () => {
     setObservaciones(entrega.observaciones || '');
     setFotosEntrega(Array.isArray(entrega.fotos) ? entrega.fotos.slice(0, 6) : []);
     setRegistroModo('ENTREGA_EXISTENTE');
+    setEntregaSubTabModo('NUEVA_ENTREGA');
     if (det) {
       setSelectedRequest(det);
     }
     setActiveTab('formulario');
     setFormStepTab(5);
     showToast(`Modo edición activado para Entrega ${entrega.codigo_entrega || `ENT-${entrega.id_entrega}`}`, 'warning');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  // Gestionar Nueva Entrega sobre una solicitud vinculada (crea una nueva entrega limpia para dicha solicitud)
+  const handleGestionarNuevaEntrega = async (entregaOrSol: any) => {
+    setIsListarModalOpen(false);
+    const idSol = entregaOrSol.id_solicitud || entregaOrSol.id;
+    if (!idSol) {
+      showToast('No se encontró una solicitud vinculada para gestionar la entrega.', 'error');
+      return;
+    }
+    setEditingEntregaId(null);
+    setEditingEntregaCodigo(null);
+    setEditingSolicitudId(null);
+    setEditingSolicitudCodigo(null);
+
+    let det: any = null;
+    try {
+      det = await sacService.getSolicitudDetail(idSol);
+    } catch (e) {
+      console.warn('No se pudo cargar detalle completo de la solicitud vinculada:', e);
+    }
+
+    const solData = det || entregaOrSol;
+    setSelectedRequest(solData);
+    setDocumento(solData?.ciudadano?.documento || entregaOrSol.documento_receptor || entregaOrSol.documento || '');
+    setNombres(solData?.ciudadano?.nombres || entregaOrSol.nombre_receptor || entregaOrSol.nombres || '');
+    setApellidos(solData?.ciudadano?.apellidos || entregaOrSol.apellidos || '');
+    setTelefono(solData?.ciudadano?.telefono || entregaOrSol.telefono_receptor || entregaOrSol.telefono || '');
+    setDireccion(solData?.ciudadano?.direccion || solData?.direccion_afectacion || entregaOrSol.direccion_receptor || entregaOrSol.direccion || '');
+    if (solData?.sector?.id_sector || entregaOrSol.id_sector) {
+      setSectorId(solData?.sector?.id_sector || entregaOrSol.id_sector);
+    }
+    if (solData?.latitud_gps && solData?.longitud_gps) {
+      setLatitud(solData.latitud_gps);
+      setLongitud(solData.longitud_gps);
+    }
+
+    // Limpiar insumos seleccionados para una NUEVA entrega independiente
+    setSelectedSubtipos([]);
+    setCantidadesSubtipos({});
+    setCantidadAyuda(1);
+    setObservaciones('');
+    setFotosEntrega([]);
+
+    setRegistroModo('ENTREGA_EXISTENTE');
+    setEntregaSubTabModo('NUEVA_ENTREGA');
+    setActiveTab('formulario');
+    setFormStepTab(5);
+    showToast(`Registrando nueva entrega para la solicitud ${solData.codigo_solicitud || `SOL-${idSol}`}`, 'success');
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -4445,10 +4566,20 @@ export const CatastrofesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleEditarEntrega(ent)}
-                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Editar o consultar los ítems de esta entrega"
+                            className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-[11px] font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
+                            title="Editar los datos e ítems de esta entrega específica"
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                            <span>Editar Entrega</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleGestionarNuevaEntrega(ent)}
+                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Crear y registrar una nueva entrega independiente para esta solicitud"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
                             <span>Gestionar Entrega</span>
                           </button>
                         </div>
@@ -5893,79 +6024,109 @@ export const CatastrofesView: React.FC = () => {
                   ))}
                 </div>
 
-                {/* Form Navigation Bar: 4 Pestañas en Solicitud Inicial / Visita Técnica */}
-                <div
-                  className={`grid gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA] ${
-                    HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
-                    registroModo === 'ENTREGA_EXISTENTE' ||
-                    registroModo === 'ENTREGA_DIRECTA'
-                      ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
-                      : 'grid-cols-2 sm:grid-cols-4'
-                  }`}
-                >
-                  {([
-                    { step: 1, label: 'Datos del Evento', icon: User },
-                    { step: 2, label: 'Núcleo Familiar', icon: Users },
-                    { step: 3, label: 'RUFE', icon: FileText },
-                    {
-                      step: 4,
-                      label:
-                        registroModo === 'VISITA_TECNICA'
-                          ? 'Visita Técnica y Re-evaluación'
-                          : 'Afectación del Inmueble',
-                      icon: Home,
-                    },
-                    ...(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
-                    registroModo === 'ENTREGA_EXISTENTE' ||
-                    registroModo === 'ENTREGA_DIRECTA'
-                      ? ([
-                          { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
-                          { step: 6, label: 'Observaciones', icon: Camera },
-                        ] as const)
-                      : []),
-                  ] as const).map((tab) => {
-                    const TabIcon = tab.icon;
-                    const isCurrent = formStepTab === tab.step;
-                    const isDone = getFormTabCompleted(tab.step);
-                    return (
-                      <button
-                        key={tab.step}
-                        type="button"
-                        onClick={() => setFormStepTab(tab.step)}
-                        className={`px-3 py-2 rounded-[10px] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${isCurrent
-                          ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-[#007AFF] font-bold shadow-2xs'
-                          : 'bg-white border-[#E5E5EA] text-[#1D1D1F] hover:bg-[#F5F5F7]'
-                          }`}
-                      >
-                        <TabIcon className={`h-3.5 w-3.5 shrink-0 ${isCurrent ? 'text-[#007AFF]' : isDone ? 'text-[#34C759]' : 'text-[#6E6E73]'}`} />
-                        <span className="truncate">{tab.label}</span>
-                        {isDone && !isCurrent && (
-                          <span className="w-2 h-2 rounded-full bg-[#34C759] shrink-0" title="Sección con datos" />
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
+                {/* Form Navigation Bar: En modo Entrega muestra solo 2 subpestañas, en Solicitud/Visita muestra las 4 */}
+                {registroModo === 'ENTREGA_EXISTENTE' ? (
+                  <div className="grid grid-cols-2 gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA]">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setEntregaSubTabModo('NUEVA_ENTREGA');
+                        setFormStepTab(5);
+                      }}
+                      className={`px-4 py-2.5 rounded-[10px] text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer border ${
+                        entregaSubTabModo === 'NUEVA_ENTREGA'
+                          ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <ListCheck className="h-4 w-4" />
+                      <span>Entrega de Ayudas</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setEntregaSubTabModo('HISTORIAL_ENTREGAS')}
+                      className={`px-4 py-2.5 rounded-[10px] text-xs font-bold flex items-center justify-center gap-2 transition cursor-pointer border ${
+                        entregaSubTabModo === 'HISTORIAL_ENTREGAS'
+                          ? 'bg-[#007AFF] text-white border-[#007AFF] shadow-2xs'
+                          : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+                      }`}
+                    >
+                      <FileText className="h-4 w-4" />
+                      <span>Listar Ayudas Entregadas ({entregasDeSolicitudSeleccionada.length})</span>
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={`grid gap-2 bg-[#F5F5F7] p-1.5 rounded-[12px] border border-[#E5E5EA] ${
+                      HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
+                      registroModo === 'ENTREGA_DIRECTA'
+                        ? 'grid-cols-2 sm:grid-cols-3 lg:grid-cols-6'
+                        : 'grid-cols-2 sm:grid-cols-4'
+                    }`}
+                  >
+                    {([
+                      { step: 1, label: 'Datos del Evento', icon: User },
+                      { step: 2, label: 'Núcleo Familiar', icon: Users },
+                      { step: 3, label: 'RUFE', icon: FileText },
+                      {
+                        step: 4,
+                        label:
+                          registroModo === 'VISITA_TECNICA'
+                            ? 'Visita Técnica y Re-evaluación'
+                            : 'Afectación del Inmueble',
+                        icon: Home,
+                      },
+                      ...(HABILITAR_ENTREGA_AYUDAS_FORM_INICIAL ||
+                      registroModo === 'ENTREGA_DIRECTA'
+                        ? ([
+                            { step: 5, label: 'Entrega de ayudas', icon: ListCheck },
+                            { step: 6, label: 'Observaciones', icon: Camera },
+                          ] as const)
+                        : []),
+                    ] as const).map((tab) => {
+                      const TabIcon = tab.icon;
+                      const isCurrent = formStepTab === tab.step;
+                      const isDone = getFormTabCompleted(tab.step);
+                      return (
+                        <button
+                          key={tab.step}
+                          type="button"
+                          onClick={() => handleCambiarPaso(tab.step)}
+                          className={`px-3 py-2 rounded-[10px] text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer border ${isCurrent
+                            ? 'bg-[#007AFF]/10 border-[#007AFF]/40 text-[#007AFF] font-bold shadow-2xs'
+                            : 'bg-white border-[#E5E5EA] text-[#1D1D1F] hover:bg-[#F5F5F7]'
+                            }`}
+                        >
+                          <TabIcon className={`h-3.5 w-3.5 shrink-0 ${isCurrent ? 'text-[#007AFF]' : isDone ? 'text-[#34C759]' : 'text-[#6E6E73]'}`} />
+                          <span className="truncate">{tab.label}</span>
+                          {isDone && !isCurrent && (
+                            <span className="w-2 h-2 rounded-full bg-[#34C759] shrink-0" title="Sección con datos" />
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
 
-              {/* Banner de Modo Edición (cuando NO es Visita Técnica) */}
+              {/* Banner de Modo Edición Profesional y Sobrio (sin colores saturados) */}
               {(editingSolicitudId || editingEntregaId) && registroModo !== 'VISITA_TECNICA' && (
-                <div className="bg-gradient-to-r from-amber-500 via-amber-600 to-orange-600 text-white rounded-3xl p-4 sm:p-5 shadow-lg flex flex-wrap items-center justify-between gap-3 animate-in fade-in slide-in-from-top-2 duration-300">
+                <div className="bg-slate-900 border border-slate-800 text-white rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3 animate-in fade-in duration-200">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center shrink-0">
-                      <Pencil className="h-5 w-5 text-white" />
+                    <div className="w-9 h-9 rounded-xl bg-slate-800 text-amber-400 border border-slate-700 flex items-center justify-center shrink-0">
+                      <Pencil className="h-4 w-4" />
                     </div>
                     <div>
                       <div className="flex items-center gap-2 flex-wrap">
-                        <span className="font-mono font-black text-xs bg-slate-950/40 px-2.5 py-0.5 rounded-lg">
+                        <span className="font-mono font-bold text-xs bg-slate-800 text-slate-200 border border-slate-700 px-2.5 py-0.5 rounded-lg">
                           {editingEntregaCodigo || editingSolicitudCodigo || `REG-${editingSolicitudId || editingEntregaId}`}
                         </span>
-                        <span className="font-extrabold text-sm sm:text-base">
-                          {editingEntregaId ? 'Modo Edición de Entrega de Ayuda Activo' : 'Modo Edición de Expediente / Censo Activo'}
+                        <span className="font-bold text-sm text-slate-100">
+                          {editingEntregaId ? 'Modo Edición de Entrega de Ayuda' : 'Modo Edición de Expediente / Censo'}
                         </span>
                       </div>
-                      <p className="text-xs text-amber-100 font-medium mt-0.5">
-                        Modificando información de <strong>{nombres || 'Ciudadano'} {apellidos}</strong> (Doc: {documento || 'S/D'}). Los cambios actualizarán la base de datos oficial.
+                      <p className="text-xs text-slate-400 mt-0.5">
+                        Modificando información de <strong className="text-slate-200">{nombres || 'Ciudadano'} {apellidos}</strong> (Doc: {documento || 'S/D'}). Los cambios actualizarán la base de datos oficial.
                       </p>
                     </div>
                   </div>
@@ -5973,9 +6134,9 @@ export const CatastrofesView: React.FC = () => {
                     <button
                       type="button"
                       onClick={resetFormState}
-                      className="px-4 py-2 bg-white text-slate-900 hover:bg-amber-50 rounded-2xl text-xs font-black shadow-md transition cursor-pointer flex items-center gap-1.5"
+                      className="px-3.5 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-200 hover:text-white border border-slate-700 rounded-xl text-xs font-bold transition cursor-pointer flex items-center gap-1.5"
                     >
-                      <X className="h-4 w-4 text-rose-600" />
+                      <X className="h-3.5 w-3.5 text-rose-400" />
                       <span>Cancelar Edición</span>
                     </button>
                   </div>
@@ -6049,6 +6210,19 @@ export const CatastrofesView: React.FC = () => {
                             >
                               <FileText className="h-3.5 w-3.5" />
                               <span>Ficha Detallada (10 pasos)</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDetailedRequestId(editingSolicitudId);
+                                setDetailModalInitialTab('visitas');
+                                setIsDetailModalOpen(true);
+                              }}
+                              className="px-3 py-1.5 bg-white hover:bg-slate-100 text-slate-800 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                              title="Ver historial de visitas técnicas de esta solicitud"
+                            >
+                              <ClipboardList className="h-3.5 w-3.5 text-indigo-600" />
+                              <span>Listar Visitas Técnicas ({reporteInicialSnapshot?.total_visitas_previas || 0})</span>
                             </button>
                             <button
                               type="button"
@@ -6267,14 +6441,32 @@ export const CatastrofesView: React.FC = () => {
                             </span>
                             <span className="text-xs font-black text-blue-950">Beneficiario Vinculado para Entrega</span>
                           </div>
-                          <button
-                            type="button"
-                            onClick={() => setIsRequestPickerOpen(true)}
-                            className="px-3 py-1 bg-white hover:bg-blue-100 text-blue-800 border border-blue-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
-                          >
-                            <Search className="h-3.5 w-3.5" />
-                            <span>Cambiar Solicitud</span>
-                          </button>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const idSol = selectedRequest.id_solicitud || selectedRequest.id;
+                                if (idSol) {
+                                  setDetailedRequestId(idSol);
+                                  setDetailModalInitialTab('censo');
+                                  setIsDetailModalOpen(true);
+                                }
+                              }}
+                              className="px-3 py-1 bg-white hover:bg-blue-100 text-blue-900 border border-blue-300 rounded-xl text-xs font-extrabold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                              title="Ver expediente y detalle completo de la solicitud"
+                            >
+                              <Eye className="h-3.5 w-3.5 text-blue-700" />
+                              <span>Ver Detalle de la Solicitud</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setIsRequestPickerOpen(true)}
+                              className="px-3 py-1 bg-white hover:bg-slate-100 text-slate-700 border border-slate-300 rounded-xl text-xs font-bold flex items-center gap-1.5 transition cursor-pointer shadow-2xs"
+                            >
+                              <Search className="h-3.5 w-3.5 text-slate-500" />
+                              <span>Cambiar Solicitud</span>
+                            </button>
+                          </div>
                         </div>
 
                         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2.5 text-xs">
@@ -6729,7 +6921,7 @@ export const CatastrofesView: React.FC = () => {
                       <div className="pt-3 border-t border-slate-100 flex items-center justify-end">
                         <button
                           type="button"
-                          onClick={() => setFormStepTab(2)}
+                          onClick={() => handleCambiarPaso(2)}
                           className="px-6 py-2.5 bg-[#0071e3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-bold shadow-xs transition flex items-center gap-1.5 cursor-pointer"
                         >
                           <span>Siguiente</span>
@@ -7755,23 +7947,34 @@ export const CatastrofesView: React.FC = () => {
                               <div className="p-4 space-y-3 bg-white border-t border-amber-200/60">
                                 <div>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {danosPanel1.map((item) => (
-                                      <label
-                                        key={item}
-                                        className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${selectedSubtipos.includes(item)
-                                          ? 'bg-amber-50 border-amber-400 font-extrabold text-amber-950 shadow-2xs'
-                                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    {danosPanel1.map((item) => {
+                                      const isSelected = selectedSubtipos.includes(item);
+                                      return (
+                                        <label
+                                          key={item}
+                                          className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
+                                            isSelected
+                                              ? 'bg-amber-50 border-amber-400 font-extrabold text-amber-950 shadow-2xs'
+                                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                           }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedSubtipos.includes(item)}
-                                          onChange={() => toggleSubtipo(item)}
-                                          className="h-4 w-4 text-amber-600 rounded border-slate-300 focus:ring-amber-500"
-                                        />
-                                        <span className="leading-snug">{item}</span>
-                                      </label>
-                                    ))}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name="radio-danos-techo"
+                                            checked={isSelected}
+                                            onChange={() => selectRadioSubtipo(item, danosPanel1)}
+                                            onClick={(e) => {
+                                              if (isSelected) {
+                                                e.preventDefault();
+                                                selectRadioSubtipo(item, danosPanel1);
+                                              }
+                                            }}
+                                            className="h-4 w-4 text-amber-600 border-slate-300 focus:ring-amber-500"
+                                          />
+                                          <span className="leading-snug">{item}</span>
+                                        </label>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                                 <div>
@@ -7900,23 +8103,34 @@ export const CatastrofesView: React.FC = () => {
                               <div className="p-4 space-y-3 bg-white border-t border-rose-200/60">
                                 <div>
                                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {danosPanel2.map((item) => (
-                                      <label
-                                        key={item}
-                                        className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${selectedSubtipos.includes(item)
-                                          ? 'bg-rose-50 border-rose-400 font-extrabold text-rose-950 shadow-2xs'
-                                          : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                    {danosPanel2.map((item) => {
+                                      const isSelected = selectedSubtipos.includes(item);
+                                      return (
+                                        <label
+                                          key={item}
+                                          className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
+                                            isSelected
+                                              ? 'bg-rose-50 border-rose-400 font-extrabold text-rose-950 shadow-2xs'
+                                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
                                           }`}
-                                      >
-                                        <input
-                                          type="checkbox"
-                                          checked={selectedSubtipos.includes(item)}
-                                          onChange={() => toggleSubtipo(item)}
-                                          className="h-4 w-4 text-rose-600 rounded border-slate-300 focus:ring-rose-500"
-                                        />
-                                        <span className="leading-snug">{item}</span>
-                                      </label>
-                                    ))}
+                                        >
+                                          <input
+                                            type="radio"
+                                            name="radio-danos-estructura"
+                                            checked={isSelected}
+                                            onChange={() => selectRadioSubtipo(item, danosPanel2)}
+                                            onClick={(e) => {
+                                              if (isSelected) {
+                                                e.preventDefault();
+                                                selectRadioSubtipo(item, danosPanel2);
+                                              }
+                                            }}
+                                            className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
+                                          />
+                                          <span className="leading-snug">{item}</span>
+                                        </label>
+                                      );
+                                    })}
                                   </div>
                                 </div>
                                 <div>
@@ -9078,8 +9292,83 @@ export const CatastrofesView: React.FC = () => {
                 </>
               )}
 
-              {/* TAB 5: Entrega de ayudas */}
-              {(formStepTab === 5 || registroModo === 'ENTREGA_EXISTENTE') && (
+              {/* SUB-PESTAÑA 2 EN MODO ENTREGA: Historial de Ayudas Entregadas a la Solicitud Seleccionada */}
+              {registroModo === 'ENTREGA_EXISTENTE' && entregaSubTabModo === 'HISTORIAL_ENTREGAS' && (
+                <div className="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden p-4 sm:p-6 space-y-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="p-2 bg-blue-50 text-[#0071e3] rounded-xl">
+                        <FileText className="h-5 w-5" />
+                      </div>
+                      <div>
+                        <h3 className="font-extrabold text-sm sm:text-base text-slate-900">
+                          Registro de Ayudas Entregadas a esta Solicitud ({entregasDeSolicitudSeleccionada.length})
+                        </h3>
+                        <p className="text-xs text-slate-500">
+                          Historial de despachos para el expediente {selectedRequest?.codigo_solicitud || `SOL-${selectedRequest?.id_solicitud || selectedRequest?.id}`}
+                        </p>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setEntregaSubTabModo('NUEVA_ENTREGA')}
+                      className="px-4 py-2 bg-[#0071e3] hover:bg-[#0077ED] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    >
+                      <Plus className="h-4 w-4" />
+                      <span>+ Crear Nueva Entrega</span>
+                    </button>
+                  </div>
+
+                  {entregasDeSolicitudSeleccionada.length === 0 ? (
+                    <div className="p-8 text-center bg-slate-50 rounded-2xl border border-dashed border-slate-200 text-slate-500 text-xs">
+                      No hay entregas registradas previamente para este expediente. Haga clic en <strong>+ Crear Nueva Entrega</strong> para registrar la primera ayuda.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {entregasDeSolicitudSeleccionada.map((ent: any) => (
+                        <div
+                          key={ent.id_entrega}
+                          className="p-4 rounded-2xl border border-slate-200 bg-slate-50/50 hover:bg-white hover:border-blue-300 transition-all shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3"
+                        >
+                          <div className="space-y-1.5">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-mono text-xs font-black text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-lg border border-emerald-300">
+                                {ent.codigo_entrega || `ENT-${ent.id_entrega}`}
+                              </span>
+                              <span className="text-xs text-slate-500 font-medium">
+                                📅 {ent.fecha_entrega || ent.created_at || 'Fecha registrada'}
+                              </span>
+                              <span className="px-2 py-0.5 rounded-md bg-blue-100 text-blue-800 text-[10px] font-bold">
+                                ✓ {ent.cantidad || 1} ítems
+                              </span>
+                            </div>
+                            <p className="text-xs font-bold text-slate-800">
+                              Receptor: {ent.nombre_receptor || ent.titular_nombres || 'Beneficiario'} ({ent.documento_receptor || ent.documento})
+                            </p>
+                            <p className="text-xs text-slate-600 line-clamp-2">
+                              Insumos entregados: <span className="font-medium text-slate-900">{ent.items_resumen || 'Sin resumen'}</span>
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <button
+                              type="button"
+                              onClick={() => handleEditarEntrega(ent)}
+                              className="px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
+                            >
+                              <Pencil className="h-3.5 w-3.5 text-slate-600" />
+                              <span>Editar Entrega</span>
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* TAB 5: Entrega de ayudas (Nueva Entrega) */}
+              {((formStepTab === 5 && registroModo !== 'ENTREGA_EXISTENTE') ||
+                (registroModo === 'ENTREGA_EXISTENTE' && entregaSubTabModo === 'NUEVA_ENTREGA')) && (
                 <div className="bg-white rounded-3xl shadow-xs border border-slate-200 overflow-hidden">
                   <div className="bg-[#0071e3] text-white px-5 py-3.5 flex flex-wrap justify-between items-center gap-2">
                     <div>
@@ -9186,65 +9475,72 @@ export const CatastrofesView: React.FC = () => {
                           </h3>
 
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
-                            {tipo.subtipos.map((sub) => {
-                              const isChecked = selectedSubtipos.includes(sub.nombre);
-                              const cant = cantidadesSubtipos[sub.nombre] || 1;
+                            {(() => {
+                              const subtiposOrdenados = [...tipo.subtipos].sort((a, b) => {
+                                const aChecked = selectedSubtipos.includes(a.nombre) ? 1 : 0;
+                                const bChecked = selectedSubtipos.includes(b.nombre) ? 1 : 0;
+                                return bChecked - aChecked;
+                              });
+                              return subtiposOrdenados.map((sub) => {
+                                const isChecked = selectedSubtipos.includes(sub.nombre);
+                                const cant = cantidadesSubtipos[sub.nombre] || 1;
 
-                              return (
-                                <div
-                                  key={sub.code}
-                                  onClick={() => toggleSubtipo(sub.nombre)}
-                                  className={`p-3 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer select-none transition-all ${isChecked
-                                    ? 'border-rose-500 bg-rose-50/90 font-bold text-rose-950 shadow-xs'
-                                    : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
-                                    }`}
-                                >
-                                  <div className="flex items-center gap-3 flex-1 min-w-0">
-                                    <input
-                                      type="checkbox"
-                                      checked={isChecked}
-                                      readOnly
-                                      className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 pointer-events-none shrink-0"
-                                    />
-                                    <span className="text-xs leading-snug truncate">{sub.nombre}</span>
-                                  </div>
-
-                                  {/* Quantity Controls when Checked */}
-                                  {isChecked && (
-                                    <div
-                                      className="flex items-center gap-1 bg-white border border-rose-300 rounded-xl p-1 shrink-0 shadow-xs"
-                                      onClick={(e) => e.stopPropagation()}
-                                    >
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCantidadSubtipoChange(sub.nombre, cant - 1)}
-                                        className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black cursor-pointer"
-                                        title="Disminuir cantidad"
-                                      >
-                                        <Minus className="h-3 w-3" />
-                                      </button>
-
+                                return (
+                                  <div
+                                    key={sub.code}
+                                    onClick={() => toggleSubtipo(sub.nombre)}
+                                    className={`p-3 rounded-2xl border flex items-center justify-between gap-3 cursor-pointer select-none transition-all ${isChecked
+                                      ? 'border-rose-500 bg-rose-50/90 font-bold text-rose-950 shadow-xs'
+                                      : 'border-slate-200 bg-white hover:border-slate-300 text-slate-700'
+                                      }`}
+                                  >
+                                    <div className="flex items-center gap-3 flex-1 min-w-0">
                                       <input
-                                        type="number"
-                                        min={1}
-                                        value={cant}
-                                        onChange={(e) => handleCantidadSubtipoChange(sub.nombre, Number(e.target.value))}
-                                        className="w-10 text-center text-xs font-black text-slate-900 outline-none bg-transparent"
+                                        type="checkbox"
+                                        checked={isChecked}
+                                        readOnly
+                                        className="h-4 w-4 rounded text-rose-600 focus:ring-rose-500 border-slate-300 pointer-events-none shrink-0"
                                       />
-
-                                      <button
-                                        type="button"
-                                        onClick={() => handleCantidadSubtipoChange(sub.nombre, cant + 1)}
-                                        className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black cursor-pointer"
-                                        title="Aumentar cantidad"
-                                      >
-                                        <Plus className="h-3 w-3" />
-                                      </button>
+                                      <span className="text-xs leading-snug truncate">{sub.nombre}</span>
                                     </div>
-                                  )}
-                                </div>
-                              );
-                            })}
+
+                                    {/* Quantity Controls when Checked */}
+                                    {isChecked && (
+                                      <div
+                                        className="flex items-center gap-1 bg-white border border-rose-300 rounded-xl p-1 shrink-0 shadow-xs"
+                                        onClick={(e) => e.stopPropagation()}
+                                      >
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCantidadSubtipoChange(sub.nombre, cant - 1)}
+                                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black cursor-pointer"
+                                          title="Disminuir cantidad"
+                                        >
+                                          <Minus className="h-3 w-3" />
+                                        </button>
+
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          value={cant}
+                                          onChange={(e) => handleCantidadSubtipoChange(sub.nombre, Number(e.target.value))}
+                                          className="w-10 text-center text-xs font-black text-slate-900 outline-none bg-transparent"
+                                        />
+
+                                        <button
+                                          type="button"
+                                          onClick={() => handleCantidadSubtipoChange(sub.nombre, cant + 1)}
+                                          className="w-6 h-6 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 flex items-center justify-center text-xs font-black cursor-pointer"
+                                          title="Aumentar cantidad"
+                                        >
+                                          <Plus className="h-3 w-3" />
+                                        </button>
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              });
+                            })()}
                           </div>
                         </div>
                       );
@@ -9275,7 +9571,8 @@ export const CatastrofesView: React.FC = () => {
               )}
 
               {/* TAB 6: Observaciones Generales y Evidencias Fotográficas Múltiples */}
-              {(formStepTab === 6 || registroModo === 'ENTREGA_EXISTENTE') && (
+              {((formStepTab === 6 && registroModo !== 'ENTREGA_EXISTENTE') ||
+                (registroModo === 'ENTREGA_EXISTENTE' && entregaSubTabModo === 'NUEVA_ENTREGA')) && (
                 <>
                   <div className="bg-white rounded-3xl shadow-xs border border-slate-200 p-4 sm:p-6 space-y-4">
                     <div>
@@ -10628,12 +10925,9 @@ export const CatastrofesView: React.FC = () => {
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => {
-                      setRegistroModo('ENTREGA_DIRECTA');
-                      setActiveTab('formulario');
-                      setFormStepTab(5);
-                    }}
-                    className="px-3.5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold transition flex items-center gap-1.5 shadow-xs cursor-pointer"
+                    disabled
+                    className="px-3.5 py-2 rounded-xl bg-slate-200 text-slate-400 border border-slate-300 text-xs font-bold transition flex items-center gap-1.5 cursor-not-allowed"
+                    title="Creación directa deshabilitada temporalmente. Gestione entregas directamente desde la solicitud vinculada o el listado general."
                   >
                     <Plus className="h-4 w-4" />
                     <span>Nueva Entrega</span>
@@ -10835,10 +11129,20 @@ export const CatastrofesView: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleEditarEntrega(ent)}
-                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
-                            title="Editar entrega y actualizar insumos"
+                            className="px-2.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold border border-slate-300 transition flex items-center gap-1 cursor-pointer"
+                            title="Editar el registro de esta entrega específica"
                           >
-                            <Pencil className="h-3.5 w-3.5" />
+                            <Pencil className="h-3.5 w-3.5 text-slate-500" />
+                            <span>Editar Entrega</span>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleGestionarNuevaEntrega(ent)}
+                            className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-extrabold transition flex items-center gap-1 shadow-2xs cursor-pointer"
+                            title="Gestionar y registrar una NUEVA entrega para esta solicitud"
+                          >
+                            <Plus className="h-3.5 w-3.5" />
                             <span>Gestionar Entrega</span>
                           </button>
                         </div>

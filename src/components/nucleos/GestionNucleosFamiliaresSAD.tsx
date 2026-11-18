@@ -12,8 +12,11 @@ import {
   Edit3,
   CheckCircle2,
   X,
+  FileText,
+  Eye,
 } from 'lucide-react';
 import { apiClient } from '../../api/client';
+import { SolicitudDetailModal } from '../modals/SolicitudDetailModal';
 
 export interface RolNucleoSAD {
   id_rol_nucleo: number;
@@ -50,6 +53,8 @@ export interface NucleoFamiliarSAD {
   estado_nucleo: string;
   es_propietario: boolean;
   observaciones_familia?: string;
+  id_solicitud?: number;
+  codigo_solicitud?: string;
   miembros: MiembroNucleoSAD[];
 }
 
@@ -60,6 +65,7 @@ export const GestionNucleosFamiliaresSAD: React.FC = () => {
   const [search, setSearch] = useState('');
   const [loading, setLoading] = useState(false);
   const [mensaje, setMensaje] = useState<{ tipo: 'ok' | 'error'; texto: string } | null>(null);
+  const [detalleSolicitudId, setDetalleSolicitudId] = useState<number | null>(null);
 
   const [showCrearModal, setShowCrearModal] = useState(false);
   const [nuevoNucleo, setNuevoNucleo] = useState({
@@ -404,7 +410,18 @@ export const GestionNucleosFamiliaresSAD: React.FC = () => {
                     </p>
                   </div>
 
-                  <div className="flex items-center gap-1.5">
+                  <div className="flex items-center gap-1.5 flex-wrap justify-end">
+                    {nuc.id_solicitud && (
+                      <button
+                        type="button"
+                        onClick={() => setDetalleSolicitudId(nuc.id_solicitud!)}
+                        className="inline-flex items-center gap-1.5 rounded-lg bg-blue-50 border border-blue-200 px-2.5 py-1.5 text-xs font-bold text-blue-700 hover:bg-blue-100 transition cursor-pointer shadow-2xs"
+                        title="Ver solicitud y censo oficial de esta familia"
+                      >
+                        <Eye className="h-3.5 w-3.5 text-blue-600" />
+                        <span>Ver Solicitud {nuc.codigo_solicitud || `SOL-${nuc.id_solicitud}`}</span>
+                      </button>
+                    )}
                     <button
                       type="button"
                       onClick={() => setEditarNucleoModal(nuc)}
@@ -897,6 +914,13 @@ export const GestionNucleosFamiliaresSAD: React.FC = () => {
             </form>
           </div>
         </div>
+      )}
+      {/* Modal para ver detalles completos de la solicitud del núcleo */}
+      {detalleSolicitudId && (
+        <SolicitudDetailModal
+          idSolicitud={detalleSolicitudId}
+          onClose={() => setDetalleSolicitudId(null)}
+        />
       )}
     </div>
   );
