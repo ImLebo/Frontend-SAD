@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
+﻿import React, { useEffect, useMemo, useState, useDeferredValue } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   Activity,
@@ -53,6 +53,7 @@ import {
   UserCheck,
   Users,
   Utensils,
+  Warehouse,
   X,
   Save,
   AlertCircle,
@@ -968,27 +969,31 @@ export const CatastrofesView: React.FC = () => {
   };
 
   const deducirNivelTecho = (subtipos: string[]): 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' => {
+    const sNorm = subtipos.map((s) => s.trim().replace(/\.$/, ''));
     if (
-      subtipos.includes('Colapso total de techo/cubierta') ||
-      subtipos.includes('Colapso total de techo en casa de la finca')
+      sNorm.includes('Colapso total de techo/cubierta') ||
+      sNorm.includes('Colapso total de techo en casa de la finca') ||
+      sNorm.includes('Colapso total del techo')
     ) return 'Colapso Total';
     if (
-      subtipos.includes('Colapso parcial de techo/cubierta') ||
-      subtipos.includes('Colapso parcial de techo en casa de la finca') ||
-      subtipos.includes('Colapso de techo en casilla de secado / elba / pasera') ||
-      subtipos.includes('Daño en techo / cubierta de beneficiadero de café')
+      sNorm.includes('Colapso parcial de techo/cubierta') ||
+      sNorm.includes('Colapso parcial de techo en casa de la finca') ||
+      sNorm.includes('Colapso parcial de techo') ||
+      sNorm.includes('Colapso de techo en casilla de secado / elba / pasera') ||
+      sNorm.includes('Daño en techo / cubierta de beneficiadero de café')
     ) return 'Grave';
     if (
-      subtipos.includes('Daño en techo/cubierta (tejas movidas o rotas)') ||
-      subtipos.includes('Daño en techo de casa principal (tejas movidas o rotas)') ||
-      subtipos.includes('Desprendimiento de cielo raso') ||
-      subtipos.includes('Daño en vidrios/ventanas') ||
-      subtipos.includes('Daño en techo de establo / corral') ||
-      subtipos.includes('Daño en techo de cochera / porqueriza') ||
-      subtipos.includes('Daño en techo de galpón avícola') ||
-      subtipos.includes('Desprendimiento o rotura en marquesina / secadero') ||
-      subtipos.includes('Daño en techo de trapiche / enramada panelera') ||
-      subtipos.includes('Daño en vidrios/ventanas o puertas de acceso')
+      sNorm.includes('Daño en techo/cubierta (tejas movidas o rotas)') ||
+      sNorm.includes('Daño en techo de casa principal (tejas movidas o rotas)') ||
+      sNorm.includes('Daño en el techo (tejas movidas o rotas)') ||
+      sNorm.includes('Desprendimiento de cielo raso') ||
+      sNorm.includes('Daño en vidrios/ventanas') ||
+      sNorm.includes('Daño en techo de establo / corral') ||
+      sNorm.includes('Daño en techo de cochera / porqueriza') ||
+      sNorm.includes('Daño en techo de galpón avícola') ||
+      sNorm.includes('Desprendimiento o rotura en marquesina / secadero') ||
+      sNorm.includes('Daño en techo de trapiche / enramada panelera') ||
+      sNorm.includes('Daño en vidrios/ventanas o puertas de acceso')
     ) {
       return 'Leve';
     }
@@ -996,39 +1001,44 @@ export const CatastrofesView: React.FC = () => {
   };
 
   const deducirNivelParedes = (subtipos: string[]): 'Colapso Total' | 'Grave' | 'Leve' | 'Ninguno' => {
+    const sNorm = subtipos.map((s) => s.trim().replace(/\.$/, ''));
     if (
-      subtipos.includes('Colapso total de muros/paredes') ||
-      subtipos.includes('Colapso total de muros en casa de la finca') ||
-      subtipos.includes('Vivienda inhabitable / requiere demolición') ||
-      subtipos.includes('Edificación inoperativa / requiere cierre preventivo') ||
-      subtipos.includes('Pérdida total de banca / cierre vial')
+      sNorm.includes('Colapso total de muros/paredes') ||
+      sNorm.includes('Colapso total de muros en casa de la finca') ||
+      sNorm.includes('Colapso total de muros') ||
+      sNorm.includes('Vivienda inhabitable / requiere demolición') ||
+      sNorm.includes('Edificación inoperativa / requiere cierre preventivo') ||
+      sNorm.includes('Pérdida total de banca / cierre vial')
     ) {
       return 'Colapso Total';
     }
     if (
-      subtipos.includes('Colapso parcial de muros/paredes') ||
-      subtipos.includes('Colapso parcial de muros en casa de la finca') ||
-      subtipos.includes('Afectación estructural / colapso en beneficiadero de café') ||
-      subtipos.includes('Afectación estructural / colapso en casilla de secado / elba / pasera') ||
-      subtipos.includes('Afectación estructural / colapso en establos / corrales') ||
-      subtipos.includes('Afectación estructural / colapso en cocheras / porquerizas') ||
-      subtipos.includes('Afectación estructural / colapso en galpones avícolas / gallineros') ||
-      subtipos.includes('Daño estructural en marquesina / silo de secado') ||
-      subtipos.includes('Agrietamiento/fisuras en columnas o vigas') ||
-      subtipos.includes('Vivienda inclinada') ||
-      subtipos.includes('Colapso total en zona de servicios') ||
-      subtipos.includes('Falla o colapso de muro de contención / gaviones')
+      sNorm.includes('Colapso parcial de muros/paredes') ||
+      sNorm.includes('Colapso parcial de muros en casa de la finca') ||
+      sNorm.includes('Colapso parcial de muros') ||
+      sNorm.includes('Afectación estructural / colapso en beneficiadero de café') ||
+      sNorm.includes('Afectación estructural / colapso en casilla de secado') ||
+      sNorm.includes('Afectación estructural / colapso en casilla de secado / elba / pasera') ||
+      sNorm.includes('Afectación estructural / colapso en establos / corrales') ||
+      sNorm.includes('Afectación estructural / colapso en cocheras / porquerizas') ||
+      sNorm.includes('Afectación estructural / colapso en galpones avícolas / gallineros') ||
+      sNorm.includes('Daño estructural en marquesina / silo') ||
+      sNorm.includes('Daño estructural en marquesina / silo de secado') ||
+      sNorm.includes('Agrietamiento/fisuras en columnas o vigas') ||
+      sNorm.includes('Vivienda inclinada') ||
+      sNorm.includes('Colapso total en zona de servicios') ||
+      sNorm.includes('Falla o colapso de muro de contención / gaviones')
     ) {
       return 'Grave';
     }
     if (
-      subtipos.includes('Agrietamiento/fisuras en paredes') ||
-      subtipos.includes('Agrietamiento/fisuras en paredes de casa principal') ||
-      subtipos.includes('Afectación en bodega de insumos / herramientas / agroquímicos') ||
-      subtipos.includes('Afectación en trapiche panelero / enramada') ||
-      subtipos.includes('Daño en bocatoma / tanques de reserva / acueducto predial') ||
-      subtipos.includes('Colapso Parcial en zona de servicios') ||
-      subtipos.includes('Daño/despolme fachada')
+      sNorm.includes('Agrietamiento/fisuras en paredes') ||
+      sNorm.includes('Agrietamiento/fisuras en paredes de casa principal') ||
+      sNorm.includes('Afectación en bodega de insumos / herramientas / agroquímicos') ||
+      sNorm.includes('Afectación en trapiche panelero / enramada') ||
+      sNorm.includes('Daño en bocatoma / tanques de reserva / acueducto predial') ||
+      sNorm.includes('Colapso Parcial en zona de servicios') ||
+      sNorm.includes('Daño/despolme fachada')
     ) {
       return 'Leve';
     }
@@ -1170,6 +1180,44 @@ export const CatastrofesView: React.FC = () => {
     };
     if (rufeMap[t]) setTipoBienRufe(rufeMap[t]);
   };
+  const DANOS_FINCA_TECHO_CASA: string[] = [
+    'Sin daño relevante en el techo.',
+    'Daño en el techo (tejas movidas o rotas).',
+    'Colapso parcial de techo.',
+    'Colapso total del techo.',
+  ];
+
+  const DANOS_FINCA_TECHO_OTRAS: string[] = [
+    'Colapso de techo en casilla de secado / elba / pasera',
+    'Daño en techo / cubierta de beneficiadero de café',
+    'Daño en techo de cochera / porqueriza',
+    'Daño en techo de establo / corral',
+    'Desprendimiento o rotura en marquesina / secadero',
+    'Daño en techo de galpón avícola',
+    'Daño en techo de trapiche / enramada panelera',
+  ];
+
+  const DANOS_FINCA_MUROS_CASA: string[] = [
+    'Sin daño relevante en paredes / muros.',
+    'Agrietamiento/fisuras en paredes de casa principal.',
+    'Colapso parcial de muros en casa de la finca.',
+    'Colapso total de muros en casa de la finca.',
+  ];
+
+  const DANOS_FINCA_MUROS_OTRAS: string[] = [
+    'Afectación estructural / colapso en beneficiadero de café',
+    'Afectación estructural / colapso en casilla de secado / elba / pasera',
+    'Afectación estructural / colapso en establos / corrales',
+    'Afectación estructural / colapso en cocheras / porquerizas',
+    'Afectación estructural / colapso en galpones avícolas / gallineros',
+    'Daño estructural en marquesina / silo de secado',
+    'Afectación en bodega de insumos / herramientas / agroquímicos',
+    'Afectación en trapiche panelero / enramada',
+    'Daño en bocatoma / tanques de reserva / acueducto predial',
+    'Hundimiento / agrietamiento de terreno o caminos internos',
+    'Deslizamiento / pérdida de cultivos o pastos',
+  ];
+
   const tituloPanel1 = esVia
     ? '1. Afectación en Calzada, Banca y Tránsito'
     : esFinca
@@ -7945,46 +7993,144 @@ export const CatastrofesView: React.FC = () => {
 
                             {isTechoSectionOpen && (
                               <div className="p-4 space-y-3 bg-white border-t border-amber-200/60">
-                                <div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {danosPanel1.map((item) => {
-                                      const isSelected = selectedSubtipos.includes(item);
-                                      return (
-                                        <label
-                                          key={item}
-                                          className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
-                                            isSelected
-                                              ? 'bg-amber-50 border-amber-400 font-extrabold text-amber-950 shadow-2xs'
-                                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                          }`}
-                                        >
-                                          <input
-                                            type="radio"
-                                            name="radio-danos-techo"
-                                            checked={isSelected}
-                                            onChange={() => selectRadioSubtipo(item, danosPanel1)}
-                                            onClick={(e) => {
-                                              if (isSelected) {
-                                                e.preventDefault();
-                                                selectRadioSubtipo(item, danosPanel1);
-                                              }
-                                            }}
-                                            className="h-4 w-4 text-amber-600 border-slate-300 focus:ring-amber-500"
-                                          />
-                                          <span className="leading-snug">{item}</span>
-                                        </label>
-                                      );
-                                    })}
+                                {esFinca ? (
+                                  <div className="space-y-3">
+                                    {/* Callout informativo según imagen */}
+                                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs font-medium">
+                                      <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                                      <span>Seleccione la afectación del techo de la casa principal según su gravedad. Luego marque las demás afectaciones que apliquen en la finca.</span>
+                                    </div>
+
+                                    {/* Bloque 1: Techo de la casa principal (Radio buttons) */}
+                                    <div className="rounded-2xl border border-blue-200 bg-blue-50/20 overflow-hidden flex flex-col md:flex-row">
+                                      <div className="md:w-44 p-3.5 bg-blue-50/70 border-b md:border-b-0 md:border-r border-blue-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
+                                        <div className="p-2 rounded-xl bg-blue-100 text-blue-700 shadow-2xs">
+                                          <Home className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-xs font-extrabold text-blue-950 leading-tight">
+                                          Techo de la casa principal
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 p-3.5 space-y-2">
+                                        <h5 className="text-xs font-extrabold text-slate-800">
+                                          Afectación en el techo de la casa principal <span className="text-[11px] font-normal text-slate-500">(seleccione una opción)</span>
+                                        </h5>
+                                        <div className="space-y-1.5">
+                                          {DANOS_FINCA_TECHO_CASA.map((item) => {
+                                            const isSelected = selectedSubtipos.includes(item);
+                                            return (
+                                              <label
+                                                key={item}
+                                                className={`px-3 py-2 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-colors ${
+                                                  isSelected
+                                                    ? 'bg-blue-100/70 border-blue-400 font-extrabold text-blue-950 shadow-2xs'
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                              >
+                                                <input
+                                                  type="radio"
+                                                  name="radio-danos-techo-finca-casa"
+                                                  checked={isSelected}
+                                                  onChange={() => selectRadioSubtipo(item, DANOS_FINCA_TECHO_CASA)}
+                                                  onClick={(e) => {
+                                                    if (isSelected) {
+                                                      e.preventDefault();
+                                                      selectRadioSubtipo(item, DANOS_FINCA_TECHO_CASA);
+                                                    }
+                                                  }}
+                                                  className="h-4 w-4 text-blue-600 border-slate-300 focus:ring-blue-500"
+                                                />
+                                                <span className="text-xs leading-snug">{item}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Bloque 2: Otras estructuras de la finca (Checklist multi-select) */}
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/20 overflow-hidden flex flex-col md:flex-row">
+                                      <div className="md:w-44 p-3.5 bg-emerald-50/70 border-b md:border-b-0 md:border-r border-emerald-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
+                                        <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shadow-2xs">
+                                          <Warehouse className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-xs font-extrabold text-emerald-950 leading-tight">
+                                          Otras estructuras de la finca
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 p-3.5 space-y-2">
+                                        <h5 className="text-xs font-extrabold text-slate-800">
+                                          Otras afectaciones <span className="text-[11px] font-normal text-slate-500">(puede seleccionar una o varias)</span>
+                                        </h5>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                          {DANOS_FINCA_TECHO_OTRAS.map((item) => {
+                                            const isSelected = selectedSubtipos.includes(item);
+                                            return (
+                                              <label
+                                                key={item}
+                                                className={`px-3 py-2 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-colors ${
+                                                  isSelected
+                                                    ? 'bg-emerald-50 border-emerald-400 font-extrabold text-emerald-950 shadow-2xs'
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelected}
+                                                  onChange={() => toggleSubtipo(item)}
+                                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                />
+                                                <span className="leading-snug">{item}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                      {danosPanel1.map((item) => {
+                                        const isSelected = selectedSubtipos.includes(item);
+                                        return (
+                                          <label
+                                            key={item}
+                                            className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
+                                              isSelected
+                                                ? 'bg-amber-50 border-amber-400 font-extrabold text-amber-950 shadow-2xs'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                            }`}
+                                          >
+                                            <input
+                                              type="radio"
+                                              name="radio-danos-techo"
+                                              checked={isSelected}
+                                              onChange={() => selectRadioSubtipo(item, danosPanel1)}
+                                              onClick={(e) => {
+                                                if (isSelected) {
+                                                  e.preventDefault();
+                                                  selectRadioSubtipo(item, danosPanel1);
+                                                }
+                                              }}
+                                              className="h-4 w-4 text-amber-600 border-slate-300 focus:ring-amber-500"
+                                            />
+                                            <span className="leading-snug">{item}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                                 <div>
                                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">
                                     Observación Adicional de Techo (Opcional)
                                   </label>
-                                  <input
-                                    type="text"
+                                  <textarea
+                                    rows={2}
                                     value={observacionTecho}
                                     onChange={(e) => setObservacionTecho(e.target.value)}
+                                    placeholder="Describa otros detalles relevantes de la afectación en los techos..."
                                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-amber-500 outline-none"
                                   />
                                 </div>
@@ -8101,68 +8247,208 @@ export const CatastrofesView: React.FC = () => {
 
                             {isEstructuraSectionOpen && (
                               <div className="p-4 space-y-3 bg-white border-t border-rose-200/60">
-                                <div>
-                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
-                                    {danosPanel2.map((item) => {
-                                      const isSelected = selectedSubtipos.includes(item);
-                                      return (
-                                        <label
-                                          key={item}
-                                          className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
-                                            isSelected
-                                              ? 'bg-rose-50 border-rose-400 font-extrabold text-rose-950 shadow-2xs'
-                                              : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
-                                          }`}
-                                        >
-                                          <input
-                                            type="radio"
-                                            name="radio-danos-estructura"
-                                            checked={isSelected}
-                                            onChange={() => selectRadioSubtipo(item, danosPanel2)}
-                                            onClick={(e) => {
-                                              if (isSelected) {
-                                                e.preventDefault();
-                                                selectRadioSubtipo(item, danosPanel2);
-                                              }
-                                            }}
-                                            className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
-                                          />
-                                          <span className="leading-snug">{item}</span>
-                                        </label>
-                                      );
-                                    })}
+                                {esFinca ? (
+                                  <div className="space-y-3">
+                                    {/* Callout informativo según diseño */}
+                                    <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50/80 border border-blue-200 text-blue-900 text-xs font-medium">
+                                      <Info className="h-4 w-4 text-blue-600 shrink-0" />
+                                      <span>Seleccione la afectación estructural de la casa principal según su gravedad. Luego marque las demás instalaciones productivas de la finca que presenten daños.</span>
+                                    </div>
+
+                                    {/* Bloque 1: Muros de la casa principal (Radio buttons) */}
+                                    <div className="rounded-2xl border border-rose-200 bg-rose-50/20 overflow-hidden flex flex-col md:flex-row">
+                                      <div className="md:w-44 p-3.5 bg-rose-50/70 border-b md:border-b-0 md:border-r border-rose-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
+                                        <div className="p-2 rounded-xl bg-rose-100 text-rose-700 shadow-2xs">
+                                          <Home className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-xs font-extrabold text-rose-950 leading-tight">
+                                          Muros de la casa principal
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 p-3.5 space-y-2">
+                                        <h5 className="text-xs font-extrabold text-slate-800">
+                                          Afectación en muros de la casa principal <span className="text-[11px] font-normal text-slate-500">(seleccione una opción)</span>
+                                        </h5>
+                                        <div className="space-y-1.5">
+                                          {DANOS_FINCA_MUROS_CASA.map((item) => {
+                                            const isSelected = selectedSubtipos.includes(item);
+                                            return (
+                                              <label
+                                                key={item}
+                                                className={`px-3 py-2 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-colors ${
+                                                  isSelected
+                                                    ? 'bg-rose-100/70 border-rose-400 font-extrabold text-rose-950 shadow-2xs'
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                              >
+                                                <input
+                                                  type="radio"
+                                                  name="radio-danos-muros-finca-casa"
+                                                  checked={isSelected}
+                                                  onChange={() => selectRadioSubtipo(item, DANOS_FINCA_MUROS_CASA)}
+                                                  onClick={(e) => {
+                                                    if (isSelected) {
+                                                      e.preventDefault();
+                                                      selectRadioSubtipo(item, DANOS_FINCA_MUROS_CASA);
+                                                    }
+                                                  }}
+                                                  className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
+                                                />
+                                                <span className="text-xs leading-snug">{item}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Bloque 2: Otras estructuras e instalaciones productivas (Checklist multi-select) */}
+                                    <div className="rounded-2xl border border-emerald-200 bg-emerald-50/20 overflow-hidden flex flex-col md:flex-row">
+                                      <div className="md:w-44 p-3.5 bg-emerald-50/70 border-b md:border-b-0 md:border-r border-emerald-200 flex md:flex-col items-center justify-center gap-2 text-center shrink-0">
+                                        <div className="p-2 rounded-xl bg-emerald-100 text-emerald-700 shadow-2xs">
+                                          <Warehouse className="h-5 w-5" />
+                                        </div>
+                                        <div className="text-xs font-extrabold text-emerald-950 leading-tight">
+                                          Otras estructuras de la finca
+                                        </div>
+                                      </div>
+                                      <div className="flex-1 p-3.5 space-y-2">
+                                        <h5 className="text-xs font-extrabold text-slate-800">
+                                          Otras afectaciones e instalaciones <span className="text-[11px] font-normal text-slate-500">(puede seleccionar una o varias)</span>
+                                        </h5>
+                                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                          {DANOS_FINCA_MUROS_OTRAS.map((item) => {
+                                            const isSelected = selectedSubtipos.includes(item);
+                                            return (
+                                              <label
+                                                key={item}
+                                                className={`px-3 py-2 rounded-xl border flex items-center gap-2.5 cursor-pointer transition-colors ${
+                                                  isSelected
+                                                    ? 'bg-emerald-50 border-emerald-400 font-extrabold text-emerald-950 shadow-2xs'
+                                                    : 'bg-white border-slate-200 text-slate-700 hover:bg-slate-50'
+                                                }`}
+                                              >
+                                                <input
+                                                  type="checkbox"
+                                                  checked={isSelected}
+                                                  onChange={() => toggleSubtipo(item)}
+                                                  className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
+                                                />
+                                                <span className="leading-snug">{item}</span>
+                                              </label>
+                                            );
+                                          })}
+                                        </div>
+                                      </div>
+                                    </div>
                                   </div>
-                                </div>
+                                ) : (
+                                  <div>
+                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                                      {danosPanel2.map((item) => {
+                                        const isSelected = selectedSubtipos.includes(item);
+                                        return (
+                                          <label
+                                            key={item}
+                                            className={`p-2.5 rounded-xl border flex items-center gap-2 cursor-pointer transition-colors ${
+                                              isSelected
+                                                ? 'bg-rose-50 border-rose-400 font-extrabold text-rose-950 shadow-2xs'
+                                                : 'bg-slate-50 border-slate-200 text-slate-700 hover:bg-slate-100'
+                                            }`}
+                                          >
+                                            <input
+                                              type="radio"
+                                              name="radio-danos-estructura"
+                                              checked={isSelected}
+                                              onChange={() => selectRadioSubtipo(item, danosPanel2)}
+                                              onClick={(e) => {
+                                                if (isSelected) {
+                                                  e.preventDefault();
+                                                  selectRadioSubtipo(item, danosPanel2);
+                                                }
+                                              }}
+                                              className="h-4 w-4 text-rose-600 border-slate-300 focus:ring-rose-500"
+                                            />
+                                            <span className="leading-snug">{item}</span>
+                                          </label>
+                                        );
+                                      })}
+                                    </div>
+                                  </div>
+                                )}
                                 <div>
                                   <label className="block text-[10px] font-bold text-slate-600 uppercase mb-0.5">
                                     Observación Adicional de Estructura (Opcional)
                                   </label>
-                                  <input
-                                    type="text"
+                                  <textarea
+                                    rows={2}
                                     value={observacionEstructura}
                                     onChange={(e) => setObservacionEstructura(e.target.value)}
+                                    placeholder="Describa otros detalles relevantes de la afectación en paredes, muros o instalaciones..."
                                     className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-medium focus:bg-white focus:ring-2 focus:ring-rose-500 outline-none"
                                   />
                                 </div>
 
-                                <div className="pt-2.5 border-t border-rose-200/60 flex flex-wrap items-center justify-between gap-2">
-                                  <span className="text-[11px] font-extrabold text-rose-950 uppercase flex items-center gap-1.5">
-                                    <span>Nivel en Estructura / Muros:</span>
-                                    <span className="text-rose-700 bg-rose-50 px-2 py-0.5 rounded-full border border-rose-200 text-[10px] font-bold">
-                                      {paredesDamageLevel}
+                                {/* EVALUACIÓN ESPECÍFICA DE MUROS Y CIMIENTOS/PISOS */}
+                                <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3">
+                                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2">
+                                    <span className="text-[11px] font-black text-slate-800 uppercase tracking-wide">
+                                      EVALUACIÓN ESPECÍFICA DE MUROS Y CIMIENTOS/PISOS:
                                     </span>
-                                  </span>
-                                  <div className="grid grid-cols-4 gap-1.5 sm:w-auto w-full">
-                                    {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
-                                      <button
-                                        key={lvl}
-                                        type="button"
-                                        onClick={() => cambiarNivelParedesManual(lvl)}
-                                        className={`py-1 px-2.5 rounded-xl text-[10px] font-bold border transition cursor-pointer ${getBotonNivelStyle(lvl, paredesDamageLevel === lvl)}`}
-                                      >
-                                        {lvl === 'Colapso Total' ? 'Total' : lvl}
-                                      </button>
-                                    ))}
+                                    <span className="text-[10px] font-bold text-blue-700 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-200 flex items-center gap-1">
+                                      <span>⚡</span>
+                                      <span>Sincronizado automáticamente • Modificable manualmente</span>
+                                    </span>
+                                  </div>
+
+                                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    {/* Daño en paredes / muros portantes */}
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black text-slate-700 uppercase">
+                                          DAÑO EN PAREDES / MUROS PORTANTES:
+                                        </span>
+                                        <span className="text-[11px] font-black text-rose-700">
+                                          {paredesDamageLevel}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                          <button
+                                            key={`pared-${lvl}`}
+                                            type="button"
+                                            onClick={() => cambiarNivelParedesManual(lvl)}
+                                            className={`py-1 px-2 rounded-xl text-[10px] font-bold border transition cursor-pointer ${getBotonNivelStyle(lvl, paredesDamageLevel === lvl)}`}
+                                          >
+                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
+
+                                    {/* Daño en pisos / cimientos */}
+                                    <div className="space-y-1.5">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[11px] font-black text-slate-700 uppercase">
+                                          DAÑO EN PISOS / CIMIENTOS:
+                                        </span>
+                                        <span className="text-[11px] font-black text-amber-700">
+                                          {pisosDamageLevel}
+                                        </span>
+                                      </div>
+                                      <div className="grid grid-cols-4 gap-1.5">
+                                        {(['Ninguno', 'Leve', 'Grave', 'Colapso Total'] as const).map((lvl) => (
+                                          <button
+                                            key={`piso-${lvl}`}
+                                            type="button"
+                                            onClick={() => cambiarNivelPisosManual(lvl)}
+                                            className={`py-1 px-2 rounded-xl text-[10px] font-bold border transition cursor-pointer ${getBotonNivelStyle(lvl, pisosDamageLevel === lvl)}`}
+                                          >
+                                            {lvl === 'Colapso Total' ? 'Total' : lvl}
+                                          </button>
+                                        ))}
+                                      </div>
+                                    </div>
                                   </div>
                                 </div>
 
@@ -8242,10 +8528,7 @@ export const CatastrofesView: React.FC = () => {
                                   <h4 className="text-xs font-extrabold text-emerald-950 uppercase flex items-center gap-2 flex-wrap">
                                     <span>3. Costos a Nivel de Infraestructura y Caracterización del Predio</span>
                                     <span className="text-[10px] font-black px-2 py-0.5 rounded-full bg-emerald-200 text-emerald-900">
-                                      {tipoInmuebleActual} • $ {(
-                                        (Number(estimacionPerdidasPesos) || 0) +
-                                        infraestructurasRurales.reduce((acc, r) => acc + (Number(r.costo_estimado_reparacion) || 0), 0)
-                                      ).toLocaleString()} COP
+                                      {tipoInmuebleActual} • $ {(Number(estimacionPerdidasPesos) || 0).toLocaleString()} COP
                                     </span>
                                   </h4>
                                 </div>
@@ -8307,10 +8590,7 @@ export const CatastrofesView: React.FC = () => {
                                     <div className="text-right">
                                       <span className="text-[10px] font-bold text-emerald-700 uppercase block">Total Costo Infraestructura</span>
                                       <span className="text-sm font-black font-mono text-emerald-950">
-                                        $ {(
-                                          (Number(estimacionPerdidasPesos) || 0) +
-                                          infraestructurasRurales.reduce((acc, r) => acc + (Number(r.costo_estimado_reparacion) || 0), 0)
-                                        ).toLocaleString('es-CO')} COP
+                                        $ {(Number(estimacionPerdidasPesos) || 0).toLocaleString('es-CO')} COP
                                       </span>
                                     </div>
                                   </div>
@@ -8477,430 +8757,7 @@ export const CatastrofesView: React.FC = () => {
                                   </div>
                                 )}
 
-                                {/* Formulario para Infraestructura Rural / Finca: Selección de qué se dañó y su severidad (Leve, Moderado, Grave, Colapso Total) */}
-                                {(tipoInmuebleActual === 'Finca' || esFinca || isSelectedSectorRural || sectorZoneFilter === 'rural' || infraestructurasRurales.length > 0) && (
-                                  <div className="p-4 bg-emerald-50/50 rounded-2xl border border-emerald-200 space-y-4 shadow-2xs">
-                                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-emerald-200/80 pb-2.5">
-                                      <div>
-                                        <span className="font-extrabold text-emerald-950 text-xs sm:text-sm flex items-center gap-1.5">
-                                          <Leaf className="h-4 w-4 text-emerald-700" />
-                                          <span>Daños en Finca / Predio Rural (Seleccione qué instalaciones sufrieron afectación)</span>
-                                        </span>
-                                        <span className="text-[11px] text-emerald-800 block mt-0.5">
-                                          Marque los componentes afectados en la finca para habilitar su nivel de daño (Leve, Moderado, Grave o Colapso Total).
-                                        </span>
-                                      </div>
-                                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-900 border border-emerald-300 text-[11px] font-extrabold">
-                                        {infraestructurasRurales.length} elemento(s) con daño
-                                      </span>
-                                    </div>
-
-                                    {/* 5 Elementos Principales de la Finca: Casa, Beneficiadero de café, Casa de agregados, Bodega de insumos, Infraestructura pecuaria */}
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                      {[
-                                        {
-                                          tipo: 'Casa',
-                                          titulo: 'Casa principal (Vivienda de la finca)',
-                                          sub: 'Estructura habitacional principal del predio rural',
-                                          icono: '🏠',
-                                        },
-                                        {
-                                          tipo: 'Beneficiadero de café',
-                                          titulo: 'Beneficiadero de café',
-                                          sub: 'Tolvas, tanques, despulpadora, secadero o cubierta',
-                                          icono: '☕',
-                                        },
-                                        {
-                                          tipo: 'Casa de agregados',
-                                          titulo: 'Casa de agregados',
-                                          sub: 'Vivienda de trabajadores, mayordomo o campamento',
-                                          icono: '🏡',
-                                        },
-                                        {
-                                          tipo: 'Bodega de insumos',
-                                          titulo: 'Bodega de insumos',
-                                          sub: 'Cuarto de herramientas, abonos, semillas o equipos',
-                                          icono: '📦',
-                                        },
-                                        {
-                                          tipo: 'Infraestructura pecuaria',
-                                          titulo: 'Infraestructura pecuaria',
-                                          sub: 'Establos, cocheras / porquerizas, galpones, corrales',
-                                          icono: '🐄',
-                                        },
-                                      ].map((itemFinca) => {
-                                        const foundIdx = infraestructurasRurales.findIndex(
-                                          (r) => r.tipo_infraestructura.toLowerCase() === itemFinca.tipo.toLowerCase()
-                                        );
-                                        const isSelected = foundIdx !== -1;
-                                        const currentObj = isSelected ? infraestructurasRurales[foundIdx] : null;
-                                        const estadoActual =
-                                          currentObj?.estado_dano === 'Parcial'
-                                            ? 'Moderado'
-                                            : currentObj?.estado_dano || 'Moderado';
-
-                                        return (
-                                          <div
-                                            key={itemFinca.tipo}
-                                            className={`rounded-2xl border-2 transition-all p-3.5 space-y-3 ${
-                                              isSelected
-                                                ? 'bg-white border-emerald-500 shadow-xs ring-2 ring-emerald-500/15'
-                                                : 'bg-white/80 border-slate-200 hover:border-emerald-300'
-                                            }`}
-                                          >
-                                            <label className="flex items-start justify-between gap-2.5 cursor-pointer select-none">
-                                              <div className="flex items-start gap-2.5">
-                                                <input
-                                                  type="checkbox"
-                                                  checked={isSelected}
-                                                  onChange={(e) => {
-                                                    if (e.target.checked) {
-                                                      setInfraestructurasRurales([
-                                                        ...infraestructurasRurales,
-                                                        {
-                                                          tipo_infraestructura: itemFinca.tipo,
-                                                          estado_dano: 'Moderado',
-                                                          observaciones: '',
-                                                          costo_estimado_reparacion: 0,
-                                                        },
-                                                      ]);
-                                                    } else {
-                                                      setInfraestructurasRurales(
-                                                        infraestructurasRurales.filter((_, i) => i !== foundIdx)
-                                                      );
-                                                    }
-                                                  }}
-                                                  className="mt-0.5 h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 shrink-0"
-                                                />
-                                                <div>
-                                                  <div className="text-xs font-extrabold text-slate-900 flex items-center gap-1.5">
-                                                    <span>{itemFinca.icono}</span>
-                                                    <span>{itemFinca.titulo}</span>
-                                                  </div>
-                                                  <span className="text-[10px] text-slate-500 block mt-0.5">
-                                                    {itemFinca.sub}
-                                                  </span>
-                                                </div>
-                                              </div>
-                                              {isSelected && (
-                                                <span
-                                                  className={`px-2 py-0.5 rounded-full text-[10px] font-black shrink-0 ${
-                                                    estadoActual === 'Colapso Total'
-                                                      ? 'bg-rose-100 text-rose-800 border border-rose-300'
-                                                      : estadoActual === 'Grave'
-                                                        ? 'bg-orange-100 text-orange-800 border border-orange-300'
-                                                        : estadoActual === 'Moderado'
-                                                          ? 'bg-amber-100 text-amber-900 border border-amber-300'
-                                                          : 'bg-slate-100 text-slate-700 border border-slate-300'
-                                                  }`}
-                                                >
-                                                  {estadoActual}
-                                                </span>
-                                              )}
-                                            </label>
-
-                                            {/* Controles habilitados cuando se selecciona que este elemento se dañó */}
-                                            {isSelected && currentObj && (
-                                              <div className="pt-2.5 border-t border-slate-100 space-y-2.5 animate-in fade-in duration-150">
-                                                <div>
-                                                  <span className="block text-[10px] font-bold text-slate-600 uppercase mb-1.5">
-                                                    Seleccione la severidad del daño en {itemFinca.tipo}:
-                                                  </span>
-                                                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-1.5">
-                                                    {([
-                                                      { val: 'Leve', label: 'Leve', style: 'bg-amber-100 text-amber-950 border-amber-400' },
-                                                      { val: 'Moderado', label: 'Moderado', style: 'bg-orange-500 text-white border-orange-600' },
-                                                      { val: 'Grave', label: 'Grave', style: 'bg-rose-600 text-white border-rose-700' },
-                                                      { val: 'Colapso Total', label: 'Pérdida Total', style: 'bg-slate-900 text-white border-slate-950' },
-                                                    ] as const).map((sev) => {
-                                                      const activeSev = estadoActual === sev.val;
-                                                      return (
-                                                        <button
-                                                          key={sev.val}
-                                                          type="button"
-                                                          onClick={() => {
-                                                            const copy = [...infraestructurasRurales];
-                                                            copy[foundIdx] = {
-                                                              ...copy[foundIdx],
-                                                              estado_dano: sev.val,
-                                                            };
-                                                            setInfraestructurasRurales(copy);
-                                                          }}
-                                                          className={`py-1.5 px-2 rounded-xl text-[11px] font-extrabold border transition cursor-pointer ${
-                                                            activeSev
-                                                              ? `${sev.style} shadow-2xs`
-                                                              : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-slate-100'
-                                                          }`}
-                                                        >
-                                                          {sev.label}
-                                                        </button>
-                                                      );
-                                                    })}
-                                                  </div>
-                                                </div>
-
-                                                {itemFinca.tipo === 'Infraestructura pecuaria' && (
-                                                  <div className="flex flex-wrap items-center gap-1">
-                                                    <span className="text-[10px] font-bold text-slate-500 mr-1">Subtipo:</span>
-                                                    {['Establos', 'Cocheras / Porquerizas', 'Galpones avícolas', 'Corrales'].map((subPec) => {
-                                                      const obsActual = currentObj.observaciones || '';
-                                                      const incluido = obsActual.toLowerCase().includes(subPec.toLowerCase());
-                                                      return (
-                                                        <button
-                                                          key={subPec}
-                                                          type="button"
-                                                          onClick={() => {
-                                                            const copy = [...infraestructurasRurales];
-                                                            const prevObs = copy[foundIdx].observaciones || '';
-                                                            copy[foundIdx].observaciones = incluido
-                                                              ? prevObs
-                                                              : prevObs
-                                                                ? `${prevObs}, ${subPec}`
-                                                                : subPec;
-                                                            setInfraestructurasRurales(copy);
-                                                          }}
-                                                          className={`px-2 py-0.5 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                                            incluido
-                                                              ? 'bg-emerald-600 text-white border-emerald-700'
-                                                              : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-emerald-50'
-                                                          }`}
-                                                        >
-                                                          + {subPec}
-                                                        </button>
-                                                      );
-                                                    })}
-                                                  </div>
-                                                )}
-
-                                                <div className="grid grid-cols-1 sm:grid-cols-12 gap-2">
-                                                  <div className="sm:col-span-8">
-                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
-                                                      Detalle del daño (Opcional)
-                                                    </label>
-                                                    <input
-                                                      type="text"
-                                                      placeholder={`Describa qué se dañó en ${itemFinca.tipo.toLowerCase()}...`}
-                                                      value={currentObj.observaciones || ''}
-                                                      onChange={(e) => {
-                                                        const copy = [...infraestructurasRurales];
-                                                        copy[foundIdx] = {
-                                                          ...copy[foundIdx],
-                                                          observaciones: e.target.value,
-                                                        };
-                                                        setInfraestructurasRurales(copy);
-                                                      }}
-                                                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs text-slate-800 focus:bg-white focus:border-emerald-500 outline-none"
-                                                    />
-                                                  </div>
-                                                  <div className="sm:col-span-4">
-                                                    <label className="block text-[9px] font-bold text-slate-500 uppercase mb-0.5">
-                                                      Costo Est. ($ COP)
-                                                    </label>
-                                                    <input
-                                                      type="number"
-                                                      min="0"
-                                                      step="50000"
-                                                      placeholder="0"
-                                                      value={currentObj.costo_estimado_reparacion || ''}
-                                                      onChange={(e) => {
-                                                        const copy = [...infraestructurasRurales];
-                                                        copy[foundIdx] = {
-                                                          ...copy[foundIdx],
-                                                          costo_estimado_reparacion: Number(e.target.value) || 0,
-                                                        };
-                                                        setInfraestructurasRurales(copy);
-                                                      }}
-                                                      className="w-full px-2.5 py-1.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-mono font-bold text-emerald-800 focus:bg-white focus:border-emerald-500 outline-none"
-                                                    />
-                                                  </div>
-                                                </div>
-                                              </div>
-                                            )}
-                                          </div>
-                                        );
-                                      })}
-                                    </div>
-
-                                    {/* Otras instalaciones rurales adicionales que no sean las 5 principales */}
-                                    {infraestructurasRurales.filter(
-                                      (r) =>
-                                        ![
-                                          'casa',
-                                          'beneficiadero de café',
-                                          'casa de agregados',
-                                          'bodega de insumos',
-                                          'infraestructura pecuaria',
-                                        ].includes(r.tipo_infraestructura.toLowerCase())
-                                    ).length > 0 && (
-                                      <div className="space-y-2 pt-2 border-t border-emerald-200/70">
-                                        <span className="block text-[10px] font-bold text-emerald-900 uppercase">
-                                          Otras instalaciones rurales registradas:
-                                        </span>
-                                        {infraestructurasRurales.map((inf, idx) => {
-                                          if (
-                                            [
-                                              'casa',
-                                              'beneficiadero de café',
-                                              'casa de agregados',
-                                              'bodega de insumos',
-                                              'infraestructura pecuaria',
-                                            ].includes(inf.tipo_infraestructura.toLowerCase())
-                                          ) {
-                                            return null;
-                                          }
-                                          const estActual = inf.estado_dano === 'Parcial' ? 'Moderado' : inf.estado_dano;
-                                          return (
-                                            <div
-                                              key={`${inf.tipo_infraestructura}-${idx}`}
-                                              className="p-3 bg-white rounded-xl border border-emerald-200 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2.5 text-xs"
-                                            >
-                                              <div className="font-bold text-slate-900 min-w-[160px]">
-                                                {inf.tipo_infraestructura}
-                                              </div>
-                                              <div className="flex items-center gap-1 flex-wrap">
-                                                {(['Leve', 'Moderado', 'Grave', 'Colapso Total'] as const).map((lvl) => (
-                                                  <button
-                                                    key={lvl}
-                                                    type="button"
-                                                    onClick={() => {
-                                                      const copy = [...infraestructurasRurales];
-                                                      copy[idx].estado_dano = lvl;
-                                                      setInfraestructurasRurales(copy);
-                                                    }}
-                                                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                                      estActual === lvl
-                                                        ? 'bg-emerald-600 text-white border-emerald-700'
-                                                        : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                                                    }`}
-                                                  >
-                                                    {lvl}
-                                                  </button>
-                                                ))}
-                                              </div>
-                                              <input
-                                                type="text"
-                                                placeholder="Observación..."
-                                                value={inf.observaciones || ''}
-                                                onChange={(e) => {
-                                                  const copy = [...infraestructurasRurales];
-                                                  copy[idx].observaciones = e.target.value;
-                                                  setInfraestructurasRurales(copy);
-                                                }}
-                                                className="flex-1 px-2.5 py-1 bg-slate-50 border border-slate-200 rounded-lg text-xs"
-                                              />
-                                              <button
-                                                type="button"
-                                                onClick={() =>
-                                                  setInfraestructurasRurales(
-                                                    infraestructurasRurales.filter((_, i) => i !== idx)
-                                                  )
-                                                }
-                                                className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                                                title="Eliminar"
-                                              >
-                                                <Trash2 className="h-4 w-4" />
-                                              </button>
-                                            </div>
-                                          );
-                                        })}
-                                      </div>
-                                    )}
-
-                                    {/* Agregar otra instalación rural en línea */}
-                                    {!mostrarOtraInfraFinca ? (
-                                      <div className="pt-1">
-                                        <button
-                                          type="button"
-                                          onClick={() => setMostrarOtraInfraFinca(true)}
-                                          className="px-3 py-1.5 rounded-xl bg-white hover:bg-emerald-100 text-emerald-900 border border-emerald-300 text-xs font-bold inline-flex items-center gap-1.5 transition cursor-pointer"
-                                        >
-                                          <Plus className="h-3.5 w-3.5" />
-                                          <span>+ Agregar otra instalación de la finca (casilla de secado, trapiche, tanque...)</span>
-                                        </button>
-                                      </div>
-                                    ) : (
-                                      <div className="p-3 bg-white rounded-xl border border-emerald-300 space-y-2.5 animate-in fade-in duration-150">
-                                        <div className="flex items-center justify-between">
-                                          <span className="text-[11px] font-extrabold text-emerald-950">
-                                            Agregar otra instalación rural afectada
-                                          </span>
-                                          <button
-                                            type="button"
-                                            onClick={() => setMostrarOtraInfraFinca(false)}
-                                            className="text-xs text-slate-400 hover:text-slate-600 cursor-pointer"
-                                          >
-                                            Cancelar
-                                          </button>
-                                        </div>
-                                        <div className="flex flex-wrap gap-1.5">
-                                          {[
-                                            'Casilla de secado / Elba / Pasera',
-                                            'Secadero / Marquesina / Silo',
-                                            'Trapiche panelero / Enramada',
-                                            'Tanque de reserva / Bocatoma / Acueducto',
-                                            'Cercas / Cerramientos perimetrales',
-                                          ].map((sug) => (
-                                            <button
-                                              key={sug}
-                                              type="button"
-                                              onClick={() => setOtraInfraFincaNombre(sug)}
-                                              className={`px-2 py-1 rounded-lg text-[10px] font-bold border transition cursor-pointer ${
-                                                otraInfraFincaNombre === sug
-                                                  ? 'bg-emerald-600 text-white border-emerald-700'
-                                                  : 'bg-slate-50 text-slate-700 border-slate-200 hover:bg-emerald-50'
-                                              }`}
-                                            >
-                                              {sug}
-                                            </button>
-                                          ))}
-                                        </div>
-                                        <div className="grid grid-cols-1 sm:grid-cols-12 gap-2 items-center">
-                                          <input
-                                            type="text"
-                                            placeholder="Nombre de la instalación rural..."
-                                            value={otraInfraFincaNombre}
-                                            onChange={(e) => setOtraInfraFincaNombre(e.target.value)}
-                                            className="sm:col-span-6 px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-semibold"
-                                          />
-                                          <select
-                                            value={otraInfraFincaDano}
-                                            onChange={(e) => setOtraInfraFincaDano(e.target.value as any)}
-                                            className="sm:col-span-3 px-2.5 py-1.5 bg-slate-50 border border-slate-300 rounded-xl text-xs font-bold"
-                                          >
-                                            <option value="Leve">Daño Leve</option>
-                                            <option value="Moderado">Daño Moderado</option>
-                                            <option value="Grave">Daño Grave</option>
-                                            <option value="Colapso Total">Pérdida Total</option>
-                                          </select>
-                                          <button
-                                            type="button"
-                                            onClick={() => {
-                                              if (!otraInfraFincaNombre.trim()) {
-                                                showToast('Ingresa o selecciona el nombre de la instalación.', 'warning');
-                                                return;
-                                              }
-                                              setInfraestructurasRurales([
-                                                ...infraestructurasRurales,
-                                                {
-                                                  tipo_infraestructura: otraInfraFincaNombre.trim(),
-                                                  estado_dano: otraInfraFincaDano,
-                                                  observaciones: '',
-                                                  costo_estimado_reparacion: 0,
-                                                },
-                                              ]);
-                                              setOtraInfraFincaNombre('');
-                                              setMostrarOtraInfraFinca(false);
-                                            }}
-                                            className="sm:col-span-3 py-1.5 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold cursor-pointer"
-                                          >
-                                            Agregar
-                                          </button>
-                                        </div>
-                                      </div>
-                                    )}
-                                  </div>
-                                )}
-                              </div>
+                                                              </div>
                             )}
                           </div>
 

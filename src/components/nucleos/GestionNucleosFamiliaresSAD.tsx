@@ -162,6 +162,22 @@ export const GestionNucleosFamiliaresSAD: React.FC = () => {
       return;
     }
 
+    // Validar que ninguna persona pertenezca ya a otro núcleo familiar activo
+    for (const m of miembrosValidos) {
+      const yaEnNucleo = nucleos.find((n) =>
+        n.miembros?.some(
+          (i) => i.documento?.trim() === m.documento.trim() && i.estado_miembro === 'ACTIVO'
+        )
+      );
+      if (yaEnNucleo) {
+        setMensaje({
+          tipo: 'error',
+          texto: `La persona con documento ${m.documento} (${m.nombres} ${m.apellidos}) ya pertenece al núcleo activo ${yaEnNucleo.codigo_nucleo} (${yaEnNucleo.nombre_nucleo}). Una persona solo puede pertenecer a un núcleo familiar a la vez.`,
+        });
+        return;
+      }
+    }
+
     try {
       await apiClient.post('/nucleos-familiares', {
         ...nuevoNucleo,
@@ -203,6 +219,23 @@ export const GestionNucleosFamiliaresSAD: React.FC = () => {
   const handleAgregarMiembro = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!nucleoSeleccionado) return;
+    const docClean = nuevoMiembro.documento.trim();
+    if (docClean) {
+      const yaEnNucleo = nucleos.find(
+        (n) =>
+          n.id_nucleo !== nucleoSeleccionado.id_nucleo &&
+          n.miembros?.some(
+            (i) => i.documento?.trim() === docClean && i.estado_miembro === 'ACTIVO'
+          )
+      );
+      if (yaEnNucleo) {
+        setMensaje({
+          tipo: 'error',
+          texto: `La persona con documento ${docClean} ya pertenece al núcleo familiar activo ${yaEnNucleo.codigo_nucleo} (${yaEnNucleo.nombre_nucleo}). Una persona solo puede pertenecer a un núcleo familiar a la vez.`,
+        });
+        return;
+      }
+    }
     try {
       await apiClient.post(`/nucleos-familiares/${nucleoSeleccionado.id_nucleo}/miembros`, nuevoMiembro);
       setMensaje({
