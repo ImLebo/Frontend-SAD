@@ -95,19 +95,19 @@ export const AdminView: React.FC = () => {
     correo: '',
     telefono: '',
     id_rol: 1, // 1: Censo, 2: Entregas, 3: Funcionario, 4: Admin
-    contrasena: 'Ayuda2026*',
+    contrasena: 'Anserma2026*',
   });
 
   // Password Reset Modal
   const [isPasswordModalOpen, setIsPasswordModalOpen] = useState(false);
   const [passwordUser, setPasswordUser] = useState<any | null>(null);
-  const [newPassword, setNewPassword] = useState('Ayuda2026*');
+  const [newPassword, setNewPassword] = useState('Anserma2026*');
 
   // Bulk Upload Modal
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [bulkText, setBulkText] = useState('');
   const [bulkDefaultRol, setBulkDefaultRol] = useState(1);
-  const [bulkDefaultPass, setBulkDefaultPass] = useState('Ayuda2026*');
+  const [bulkDefaultPass, setBulkDefaultPass] = useState('Anserma2026*');
   const [bulkAssignEventoId, setBulkAssignEventoId] = useState<number | ''>('');
 
   // ---------------------------------------------------------
@@ -268,7 +268,7 @@ export const AdminView: React.FC = () => {
       correo: '',
       telefono: '',
       id_rol: 1,
-      contrasena: 'Ayuda2026*',
+      contrasena: 'Anserma2026*',
     });
     setIsUserModalOpen(true);
   };
@@ -330,7 +330,7 @@ export const AdminView: React.FC = () => {
 
   const handleOpenPasswordModal = (u: any) => {
     setPasswordUser(u);
-    setNewPassword('Ayuda2026*');
+    setNewPassword('Anserma2026*');
     setIsPasswordModalOpen(true);
   };
 
@@ -1305,7 +1305,7 @@ export const AdminView: React.FC = () => {
                     type="text"
                     value={userForm.contrasena}
                     onChange={(e) => setUserForm({ ...userForm, contrasena: e.target.value })}
-                    placeholder="Ayuda2026*"
+                    placeholder="Anserma2026*"
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3 py-2 text-xs font-mono text-slate-800 focus:outline-none"
                   />
                 </div>

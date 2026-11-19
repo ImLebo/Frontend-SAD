@@ -2,11 +2,12 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import { apiClient } from '../api/client';
-import { ShieldCheck, Lock, Mail, Loader2, ArrowRight } from 'lucide-react';
+import { ShieldCheck, Lock, Mail, Loader2, ArrowRight, Eye, EyeOff } from 'lucide-react';
 
 export const LoginView: React.FC = () => {
   const [correo, setCorreo] = useState('');
   const [contrasena, setContrasena] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -36,11 +37,6 @@ export const LoginView: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  };
-
-  const setDemoUser = (email: string, pass: string) => {
-    setCorreo(email);
-    setContrasena(pass);
   };
 
   return (
@@ -84,13 +80,22 @@ export const LoginView: React.FC = () => {
             <div className="relative">
               <Lock className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-[#6E6E73]" />
               <input
-                type="password"
+                type={showPassword ? 'text' : 'password'}
                 required
                 value={contrasena}
                 onChange={(e) => setContrasena(e.target.value)}
                 placeholder="••••••••"
-                className="w-full bg-[#F5F5F7] border border-[#D2D2D7] rounded-[10px] pl-10 pr-4 py-2.5 text-xs font-medium text-[#1D1D1F] placeholder-[#86868B] focus:bg-white focus:outline-none focus:border-[#007AFF] focus:ring-3 focus:ring-[#007AFF]/15 transition"
+                className="w-full bg-[#F5F5F7] border border-[#D2D2D7] rounded-[10px] pl-10 pr-10 py-2.5 text-xs font-medium text-[#1D1D1F] placeholder-[#86868B] focus:bg-white focus:outline-none focus:border-[#007AFF] focus:ring-3 focus:ring-[#007AFF]/15 transition"
               />
+              <button
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3.5 top-1/2 -translate-y-1/2 text-[#6E6E73] hover:text-[#1D1D1F] p-0.5 rounded transition cursor-pointer"
+                title={showPassword ? 'Ocultar contraseña' : 'Ver contraseña'}
+                tabIndex={-1}
+              >
+                {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
             </div>
           </div>
 
@@ -109,32 +114,6 @@ export const LoginView: React.FC = () => {
             )}
           </button>
         </form>
-
-        {/* Demo Users Quick Access */}
-        <div className="mt-7 pt-5 border-t border-[#E5E5EA]">
-          <p className="text-[11px] font-bold text-[#6E6E73] mb-3 uppercase tracking-wider text-center">
-            Acceso Rápido Perfiles Locales (Clave: Ayuda2026*)
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {[
-              { label: 'Alcalde', email: 'alcalde@siga.com' },
-              { label: 'Secretario', email: 'secretario@siga.com' },
-              { label: 'Coord. UNGRD', email: 'ungrd@siga.com' },
-              { label: 'Administrador', email: 'admin@siga.com' },
-              { label: 'Funcionario', email: 'funcionario1@siga.com' },
-              { label: 'Brigada Censo', email: 'ayudac1@siga.com' },
-            ].map((u) => (
-              <button
-                key={u.email}
-                type="button"
-                onClick={() => setDemoUser(u.email, 'Ayuda2026*')}
-                className="px-3 py-2 bg-[#F5F5F7] hover:bg-[#007AFF]/10 hover:border-[#007AFF]/40 text-xs text-[#1D1D1F] rounded-[10px] font-semibold transition flex items-center justify-center border border-[#D2D2D7] cursor-pointer"
-              >
-                <span>{u.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
       </div>
     </div>
   );
